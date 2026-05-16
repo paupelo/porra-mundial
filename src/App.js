@@ -1,23 +1,65 @@
-import logo from './logo.svg';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <Router>
+      <div className="App">
+        <header className="app-header">
+          <div className="header-logo">
+            <img src="/Logo_Mundial.png" alt="Mundial 2026" className="logo-icon" />
+            <span className="header-title">Porra Mundial 2026</span>
+          </div>
+          <nav>
+            <a href="/">Inicio</a>
+            <a href="/arma-tu-porra">Arma tu Porra</a>
+            <a href="/clasificacion">Clasificación</a>
+            <a href="/normas">Normas</a>
+          </nav>
+        </header>
+        <main>
+          <Routes>
+            <Route path="/" element={<Inicio />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
+  );
+}
+
+function Inicio() {
+  return (
+    <div className="inicio">
+      <div className="hero">
+        <div className="hero-content">
+          <span className="inicio-badge">Mundial USA · Canadá · México 2026</span>
+          <h2>La porra<br/><span>del Mundial</span></h2>
+          <p>Elige tus equipos, arma tu XI y compite contra tus amigos durante todo el Mundial.</p>
+          <button className="btn-principal">Arma tu Porra</button>
+        </div>
+        <div className="hero-logo">
+          <img src="/Logo_Mundial.png" alt="Logo Mundial 2026" className="mundial-logo" />
+        </div>
+      </div>
+      <div className="stats-bar">
+        <div className="stat">
+          <div className="stat-number">48</div>
+          <div className="stat-label">Equipos</div>
+        </div>
+        <div className="stat">
+          <div className="stat-number">104</div>
+          <div className="stat-label">Partidos</div>
+        </div>
+        <div className="stat">
+          <div className="stat-number">3</div>
+          <div className="stat-label">Países sede</div>
+        </div>
+        <div className="stat">
+          <div className="stat-number">2026</div>
+          <div className="stat-label">Año</div>
+        </div>
+      </div>
     </div>
   );
 }

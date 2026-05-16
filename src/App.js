@@ -34,9 +34,8 @@ function Inicio() {
       <div className="hero">
         <div className="hero-content">
           <span className="inicio-badge">Mundial USA · Canadá · México 2026</span>
-          <h2>La porra<br/><span>del Mundial</span></h2>
-          <p>Elige tus equipos, arma tu XI y compite contra tus amigos durante todo el Mundial.</p>
-          <button className="btn-principal">Arma tu Porra</button>
+          <h2>La porra<br /><span>del Mundial</span></h2>
+          <p>La porra de Fachat, la porra favorita de los DJs de mierda, la porra que casi siempre gana Spike, la porra que te da pereza hacer pero que luego le da vidilla al mundial... la porra de las porras. La puta porra del chat de la porra.</p>          <button className="btn-principal">Arma tu Porra</button>
         </div>
         <div className="hero-logo">
           <img src="/Logo_Mundial.png" alt="Logo Mundial 2026" className="mundial-logo" />

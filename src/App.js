@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import ArmaTuPorra from './components/ArmaTuPorra/ArmaTuPorra';
 import './App.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
         <main>
           <Routes>
             <Route path="/" element={<Inicio />} />
+            <Route path="/arma-tu-porra" element={<ArmaTuPorra />} />
           </Routes>
         </main>
       </div>

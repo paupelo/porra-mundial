@@ -65,6 +65,12 @@ body {
   background-color: #f0f4fa;
 }
 
+.app-header nav a.active {
+  color: #003DA5;
+  background-color: #e8f0fc;
+  font-weight: 700;
+}
+
 /* HERO */
 .inicio {
   min-height: calc(100vh - 71px);

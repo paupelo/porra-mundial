@@ -1,6 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import ArmaTuPorra from './components/ArmaTuPorra/ArmaTuPorra';
+import Normas from './components/Normas/Normas';
 import './App.css';
 
 function App() {
@@ -13,16 +14,17 @@ function App() {
             <span className="header-title">Porra Mundial 2026</span>
           </div>
           <nav>
-            <a href="/">Inicio</a>
-            <a href="/arma-tu-porra">Arma tu Porra</a>
-            <a href="/clasificacion">Clasificación</a>
-            <a href="/normas">Normas</a>
+            <NavLink to="/" end>Inicio</NavLink>
+            <NavLink to="/arma-tu-porra">Arma tu Porra</NavLink>
+            <NavLink to="/clasificacion">Clasificación</NavLink>
+            <NavLink to="/normas">Normas</NavLink>
           </nav>
         </header>
         <main>
           <Routes>
             <Route path="/" element={<Inicio />} />
             <Route path="/arma-tu-porra" element={<ArmaTuPorra />} />
+            <Route path="/normas" element={<Normas />} />
           </Routes>
         </main>
       </div>

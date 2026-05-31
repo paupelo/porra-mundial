@@ -1,0 +1,145 @@
+.clasificacion-page {
+  background: #ffffff;
+  min-height: calc(100vh - 71px);
+  padding: 0 0 80px;
+}
+
+.clas-hero {
+  background: linear-gradient(180deg, #ffffff 0%, #f5f8fd 100%);
+  border-bottom: 1px solid #e8edf5;
+  padding: 48px 80px 40px;
+  position: relative;
+}
+.clas-hero::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, #003DA5, #0066ff, #003DA5, transparent);
+}
+.clas-hero h1 { font-size: 2.8rem; font-weight: 900; color: #003DA5; letter-spacing: -1.5px; margin-bottom: 6px; }
+.clas-hero p  { color: #6b7c93; font-size: 0.95rem; font-weight: 500; }
+
+.clas-content { max-width: 900px; margin: 0 auto; padding: 40px 40px 0; }
+
+/* Tabla ranking */
+.ranking-table { width: 100%; border-collapse: collapse; }
+.ranking-table thead th {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  color: #64748b; padding: 10px 16px; text-align: left; border-bottom: 2px solid #e2e8f0;
+}
+.ranking-table thead th:last-child { text-align: right; }
+.ranking-row {
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer; transition: background 0.15s;
+}
+.ranking-row:hover { background: #f8fafc; }
+.ranking-row td { padding: 16px; }
+
+.pos-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  font-size: 0.85rem; font-weight: 800;
+}
+.pos-1 { background: #fef3c7; color: #92400e; }
+.pos-2 { background: #f1f5f9; color: #475569; }
+.pos-3 { background: #fef3c7; color: #78350f; filter: brightness(0.85); }
+.pos-n { background: #f8fafc; color: #94a3b8; }
+
+.participant-name { font-size: 1rem; font-weight: 700; color: #1e293b; }
+.participant-pts  { font-size: 1.3rem; font-weight: 900; color: #003DA5; text-align: right; }
+
+.clas-loading { text-align: center; padding: 80px 0; color: #6b7c93; font-size: 1rem; }
+.clas-empty   { text-align: center; padding: 80px 0; }
+.clas-empty p { color: #94a3b8; font-size: 1rem; margin-top: 12px; }
+
+/* ─── Detalle participante ─────────────────────────────────────────────── */
+.detalle-back {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: #003DA5; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; margin-bottom: 24px; background: none; border: none; padding: 0;
+}
+.detalle-back:hover { text-decoration: underline; }
+
+.detalle-header { margin-bottom: 32px; }
+.detalle-header h2 { font-size: 2rem; font-weight: 900; color: #003DA5; letter-spacing: -1px; }
+.detalle-header .total { font-size: 1rem; color: #64748b; font-weight: 600; margin-top: 4px; }
+.detalle-header .total span { color: #003DA5; font-weight: 900; font-size: 1.2rem; }
+
+.detalle-section { margin-bottom: 40px; }
+.detalle-section h3 {
+  font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+  color: #94a3b8; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;
+}
+
+/* Cards de selecciones */
+.sel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 12px; }
+.sel-card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px;
+}
+.sel-card.is-winner { border-color: #fbbf24; background: #fffbeb; }
+.sel-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sel-name { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
+.sel-cat {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 10px;
+}
+.cat-favoritos  { background: rgba(220,38,38,0.1);  color: #b91c1c; }
+.cat-sorpresas  { background: rgba(37,99,235,0.1);  color: #1d4ed8; }
+.cat-petardazos { background: rgba(22,163,74,0.1);  color: #15803d; }
+.cat-caca       { background: rgba(107,114,128,0.1); color: #4b5563; }
+
+.sel-pts { font-size: 1.1rem; font-weight: 900; color: #003DA5; }
+.sel-winner-badge {
+  font-size: 0.65rem; font-weight: 700; background: #fbbf24; color: #92400e;
+  padding: 2px 6px; border-radius: 6px;
+}
+
+/* Tabla de desglose de conceptos */
+.breakdown-wrap {
+  border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-top: 12px;
+}
+.breakdown-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.breakdown-table th {
+  background: #f8fafc; color: #64748b; font-weight: 700; font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+.breakdown-table th:last-child { text-align: right; }
+.breakdown-table tr:nth-child(even) { background: #f8fafc; }
+.breakdown-table tr:hover { background: #f0f4fa; }
+.breakdown-table td { padding: 8px 12px; color: #374151; border-bottom: 1px solid #f1f5f9; }
+.breakdown-table tr:last-child td { border-bottom: none; }
+.breakdown-table td:last-child { text-align: right; font-weight: 700; }
+.pts-pos { color: #16a34a; }
+.pts-neg { color: #dc2626; }
+.pts-zero { color: #94a3b8; }
+
+/* Tarjetas de jugadores */
+.jugador-card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  margin-bottom: 12px; overflow: hidden;
+}
+.jugador-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; cursor: pointer;
+}
+.jugador-card-header:hover { background: #f0f4fa; }
+.jugador-info { display: flex; align-items: center; gap: 12px; }
+.jugador-pos {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  padding: 3px 8px; border-radius: 6px; background: #e2e8f0; color: #475569;
+}
+.jugador-name { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
+.jugador-role { font-size: 0.72rem; color: #94a3b8; }
+.jugador-pts { font-size: 1.1rem; font-weight: 900; color: #003DA5; }
+.jugador-pts.captain { color: #b45309; }
+.captain-badge {
+  font-size: 0.65rem; font-weight: 700; background: #fef3c7; color: #92400e;
+  padding: 2px 6px; border-radius: 6px; margin-left: 6px;
+}
+
+@media (max-width: 768px) {
+  .clas-hero { padding: 32px 20px 28px; }
+  .clas-hero h1 { font-size: 2rem; }
+  .clas-content { padding: 24px 16px 0; }
+  .sel-grid { grid-template-columns: 1fr 1fr; }
+}

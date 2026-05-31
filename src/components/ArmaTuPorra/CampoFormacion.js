@@ -7,16 +7,16 @@ import { SELECCIONES, CATEGORIAS } from './datos';
  * Campo:   rect(15, 20, 270, 420)  →  y: 20…440, x: 15…285
  */
 const SLOTS = [
-  { pos: 'DEL', idx: 0, cx: 83,  cy: 100 },
-  { pos: 'DEL', idx: 1, cx: 150, cy: 100 },
-  { pos: 'DEL', idx: 2, cx: 217, cy: 100 },
-  { pos: 'MED', idx: 0, cx: 69,  cy: 185 },
-  { pos: 'MED', idx: 1, cx: 123, cy: 185 },
-  { pos: 'MED', idx: 2, cx: 177, cy: 185 },
-  { pos: 'MED', idx: 3, cx: 231, cy: 185 },
-  { pos: 'DEF', idx: 0, cx: 83,  cy: 278 },
-  { pos: 'DEF', idx: 1, cx: 150, cy: 278 },
-  { pos: 'DEF', idx: 2, cx: 217, cy: 278 },
+  { pos: 'DEL', idx: 0, cx: 83,  cy: 130 },
+  { pos: 'DEL', idx: 1, cx: 150, cy: 130 },
+  { pos: 'DEL', idx: 2, cx: 217, cy: 130 },
+  { pos: 'MED', idx: 0, cx: 69,  cy: 230 },
+  { pos: 'MED', idx: 1, cx: 123, cy: 230 },
+  { pos: 'MED', idx: 2, cx: 177, cy: 230 },
+  { pos: 'MED', idx: 3, cx: 231, cy: 230 },
+  { pos: 'DEF', idx: 0, cx: 83,  cy: 328 },
+  { pos: 'DEF', idx: 1, cx: 150, cy: 328 },
+  { pos: 'DEF', idx: 2, cx: 217, cy: 328 },
   { pos: 'POR', idx: 0, cx: 150, cy: 390 },
 ];
 
@@ -192,9 +192,9 @@ function CampoFormacion({ titular, suplentes }) {
         {/* Punto penalti arriba */}
         <circle cx="150" cy="64" r="2.5" fill="rgba(255,255,255,0.88)"/>
 
-        {/* Semicírculo del área arriba (sale hacia el interior del campo) */}
+        {/* Semicírculo del área arriba (sale hacia el centro del campo) */}
         <path
-          d="M 120 86 A 37 37 0 0 1 180 86"
+          d="M 120 86 A 37 37 0 0 0 180 86"
           fill="none"
           stroke="rgba(255,255,255,0.88)" strokeWidth="1.5"
         />
@@ -230,9 +230,9 @@ function CampoFormacion({ titular, suplentes }) {
         {/* Punto penalti abajo */}
         <circle cx="150" cy="396" r="2.5" fill="rgba(255,255,255,0.88)"/>
 
-        {/* Semicírculo del área abajo */}
+        {/* Semicírculo del área abajo (sale hacia el centro del campo) */}
         <path
-          d="M 120 374 A 37 37 0 0 0 180 374"
+          d="M 120 374 A 37 37 0 0 1 180 374"
           fill="none"
           stroke="rgba(255,255,255,0.88)" strokeWidth="1.5"
         />

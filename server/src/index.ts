@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { runMigrations } from './db/migrate';
+import { runSeedIfEmpty } from './scripts/seed';
 import { errorHandler } from './middleware/errors';
 import authRoutes from './routes/auth.routes';
 import publicRoutes from './routes/public.routes';
@@ -14,6 +15,7 @@ import submitRoutes from './routes/submit.routes';
 dotenv.config();
 
 runMigrations();
+runSeedIfEmpty();
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;

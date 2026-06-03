@@ -2,9 +2,6 @@ import { v4 as uuid } from 'uuid';
 import { getDb } from '../db/database';
 import { runMigrations } from '../db/migrate';
 
-runMigrations();
-const db = getDb();
-
 // ─── Datos ────────────────────────────────────────────────────────────────────
 const TEAMS: Array<{ id: string; name: string; category: string; code: string; players: Array<{name:string;pos:string}> }> = [
   { id: 'argelia', name: 'Argelia', category: 'petardazos', code: 'ALG', players: [
@@ -1355,27 +1352,42 @@ const TEAMS: Array<{ id: string; name: string; category: string; code: string; p
 
 // ─── Seed ─────────────────────────────────────────────────────────────────────
 
-const insertTeam = db.prepare(
-  "INSERT OR IGNORE INTO teams(id, name, country_code, category) VALUES(?,?,?,?)"
-);
-const insertPlayer = db.prepare(
-  "INSERT OR IGNORE INTO players(id, name, team_id, position) VALUES(?,?,?,?)"
-);
-
-let teamCount = 0;
-let playerCount = 0;
-
-const seedAll = db.transaction(() => {
-  for (const team of TEAMS) {
-    insertTeam.run(team.id, team.name, team.code, team.category);
-    teamCount++;
-    for (const p of team.players) {
-      insertPlayer.run(uuid(), p.name, team.id, p.pos);
-      playerCount++;
-    }
+export function runSeedIfEmpty(): void {
+  const db = getDb();
+  const { cnt } = db.prepare('SELECT COUNT(*) as cnt FROM teams').get() as { cnt: number };
+  if (cnt > 0) {
+    console.log(`✓ Seed: ${cnt} equipos ya existen, omitiendo seed`);
+    return;
   }
-});
 
-seedAll();
-console.log(`✓ ${teamCount} equipos insertados`);
-console.log(`✓ ${playerCount} jugadores insertados`);
+  const insertTeam = db.prepare(
+    'INSERT OR IGNORE INTO teams(id, name, country_code, category) VALUES(?,?,?,?)'
+  );
+  const insertPlayer = db.prepare(
+    'INSERT OR IGNORE INTO players(id, name, team_id, position) VALUES(?,?,?,?)'
+  );
+
+  let teamCount = 0;
+  let playerCount = 0;
+
+  db.transaction(() => {
+    for (const team of TEAMS) {
+      insertTeam.run(team.id, team.name, team.code, team.category);
+      teamCount++;
+      for (const p of team.players) {
+        insertPlayer.run(uuid(), p.name, team.id, p.pos);
+        playerCount++;
+      }
+    }
+  })();
+
+  console.log(`✓ Seed: ${teamCount} equipos insertados`);
+  console.log(`✓ Seed: ${playerCount} jugadores insertados`);
+}
+
+// Ejecutable directo: ts-node src/scripts/seed.ts
+if (require.main === module) {
+  runMigrations();
+  runSeedIfEmpty();
+  process.exit(0);
+}

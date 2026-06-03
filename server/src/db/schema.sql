@@ -1,6 +1,3 @@
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
-
 -- ─── Catálogo del torneo ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS teams (
@@ -8,7 +5,7 @@ CREATE TABLE IF NOT EXISTS teams (
   name         TEXT NOT NULL,
   country_code TEXT,
   category     TEXT NOT NULL CHECK (category IN ('favoritos','sorpresas','petardazos','caca')),
-  created_at   TEXT DEFAULT (datetime('now'))
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS players (
@@ -16,7 +13,7 @@ CREATE TABLE IF NOT EXISTS players (
   name       TEXT NOT NULL,
   team_id    TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   position   TEXT NOT NULL CHECK (position IN ('portero','defensa','medio','delantero')),
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ─── Partidos y eventos ───────────────────────────────────────────────────────
@@ -32,7 +29,7 @@ CREATE TABLE IF NOT EXISTS matches (
   away_score           INTEGER,
   decided_by_penalties INTEGER NOT NULL DEFAULT 0,
   penalty_winner_id    TEXT REFERENCES teams(id),
-  created_at           TEXT DEFAULT (datetime('now'))
+  created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS match_player_events (
@@ -55,7 +52,7 @@ CREATE TABLE IF NOT EXISTS match_player_events (
   is_improvised_goalkeeper  INTEGER NOT NULL DEFAULT 0,
   source                    TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','besoccer_draft')),
   is_confirmed              INTEGER NOT NULL DEFAULT 0,
-  created_at                TEXT DEFAULT (datetime('now')),
+  created_at                TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, player_id)
 );
 
@@ -64,7 +61,7 @@ CREATE TABLE IF NOT EXISTS team_phase_results (
   team_id    TEXT NOT NULL REFERENCES teams(id),
   phase      TEXT NOT NULL CHECK (phase IN ('grupos','dieciseisavos','octavos','cuartos','semifinales','final')),
   result     TEXT NOT NULL CHECK (result IN ('advanced','eliminated','winner')),
-  created_at TEXT DEFAULT (datetime('now')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(team_id, phase)
 );
 
@@ -74,7 +71,7 @@ CREATE TABLE IF NOT EXISTS participants (
   id         TEXT PRIMARY KEY,
   name       TEXT NOT NULL,
   email      TEXT UNIQUE,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS porras (
@@ -85,8 +82,8 @@ CREATE TABLE IF NOT EXISTS porras (
   status               TEXT NOT NULL DEFAULT 'pending',
   submitted_email      TEXT,
   submitted_data_json  TEXT,
-  created_at           TEXT DEFAULT (datetime('now')),
-  updated_at           TEXT DEFAULT (datetime('now'))
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS porra_selections (
@@ -112,9 +109,9 @@ CREATE TABLE IF NOT EXISTS porra_lineup (
 CREATE TABLE IF NOT EXISTS porra_scores (
   id             TEXT PRIMARY KEY,
   porra_id       TEXT NOT NULL UNIQUE REFERENCES porras(id) ON DELETE CASCADE,
-  total_points   REAL NOT NULL DEFAULT 0,
+  total_points   DOUBLE PRECISION NOT NULL DEFAULT 0,
   breakdown_json TEXT,
-  calculated_at  TEXT DEFAULT (datetime('now'))
+  calculated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ─── Admin ───────────────────────────────────────────────────────────────────
@@ -123,7 +120,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
   id            TEXT PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  created_at    TEXT DEFAULT (datetime('now'))
+  created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ─── Índices ──────────────────────────────────────────────────────────────────

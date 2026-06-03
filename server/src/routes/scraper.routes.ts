@@ -27,8 +27,8 @@ router.post('/fetch', async (req, res, next) => {
       return;
     }
 
-    const teams = TeamsRepo.findAll();
-    const players = PlayersRepo.findAll();
+    const teams = await TeamsRepo.findAll();
+    const players = await PlayersRepo.findAll();
 
     // Añadir sugerencias de conciliación a cada jugador del borrador
     const playersWithSuggestions = draft.players.map(p => ({
@@ -47,12 +47,14 @@ router.post('/fetch', async (req, res, next) => {
  * POST /api/admin/scraper/save-draft
  * Guarda los eventos del borrador (ya conciliados por el admin) con is_confirmed=0.
  */
-router.post('/save-draft', (req, res) => {
-  const events = req.body.events as Parameters<typeof EventsRepo.upsert>[0][];
-  for (const ev of events) {
-    EventsRepo.upsert({ ...ev, source: 'besoccer_draft', is_confirmed: 0 });
-  }
-  res.json({ saved: events.length });
+router.post('/save-draft', async (req, res, next) => {
+  try {
+    const events = req.body.events as Parameters<typeof EventsRepo.upsert>[0][];
+    for (const ev of events) {
+      await EventsRepo.upsert({ ...ev, source: 'besoccer_draft', is_confirmed: 0 });
+    }
+    res.json({ saved: events.length });
+  } catch (e) { next(e); }
 });
 
 export default router;

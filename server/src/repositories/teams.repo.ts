@@ -3,26 +3,29 @@ import { getDb } from '../db/database';
 import { TeamRecord } from '../types';
 
 export const TeamsRepo = {
-  findAll(): TeamRecord[] {
-    return getDb().prepare('SELECT id,name,country_code,category FROM teams ORDER BY category,name').all() as TeamRecord[];
+  async findAll(): Promise<TeamRecord[]> {
+    const result = await getDb().query('SELECT id,name,country_code,category FROM teams ORDER BY category,name');
+    return result.rows as TeamRecord[];
   },
 
-  findById(id: string): TeamRecord | undefined {
-    return getDb().prepare('SELECT id,name,country_code,category FROM teams WHERE id=?').get(id) as TeamRecord | undefined;
+  async findById(id: string): Promise<TeamRecord | undefined> {
+    const result = await getDb().query('SELECT id,name,country_code,category FROM teams WHERE id=$1', [id]);
+    return result.rows[0] as TeamRecord | undefined;
   },
 
-  create(data: Omit<TeamRecord, 'id'>): TeamRecord {
+  async create(data: Omit<TeamRecord, 'id'>): Promise<TeamRecord> {
     const id = uuid();
-    getDb().prepare('INSERT INTO teams(id,name,country_code,category) VALUES(?,?,?,?)').run(id, data.name, data.country_code ?? null, data.category);
+    await getDb().query('INSERT INTO teams(id,name,country_code,category) VALUES($1,$2,$3,$4)', [id, data.name, data.country_code ?? null, data.category]);
     return { id, ...data };
   },
 
-  update(id: string, data: Partial<Omit<TeamRecord, 'id'>>): void {
-    const fields = Object.keys(data).map(k => `${k}=?`).join(',');
-    getDb().prepare(`UPDATE teams SET ${fields} WHERE id=?`).run(...Object.values(data), id);
+  async update(id: string, data: Partial<Omit<TeamRecord, 'id'>>): Promise<void> {
+    const keys = Object.keys(data);
+    const fields = keys.map((k, i) => `${k}=$${i + 1}`).join(',');
+    await getDb().query(`UPDATE teams SET ${fields} WHERE id=$${keys.length + 1}`, [...Object.values(data), id]);
   },
 
-  delete(id: string): void {
-    getDb().prepare('DELETE FROM teams WHERE id=?').run(id);
+  async delete(id: string): Promise<void> {
+    await getDb().query('DELETE FROM teams WHERE id=$1', [id]);
   },
 };

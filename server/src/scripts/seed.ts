@@ -1,6 +1,8 @@
 import { v4 as uuid } from 'uuid';
 import { getDb } from '../db/database';
 import { runMigrations } from '../db/migrate';
+import dotenv from 'dotenv';
+dotenv.config();
 
 // ─── Datos ────────────────────────────────────────────────────────────────────
 const TEAMS: Array<{ id: string; name: string; category: string; code: string; players: Array<{name:string;pos:string}> }> = [
@@ -1352,34 +1354,42 @@ const TEAMS: Array<{ id: string; name: string; category: string; code: string; p
 
 // ─── Seed ─────────────────────────────────────────────────────────────────────
 
-export function runSeedIfEmpty(): void {
+export async function runSeedIfEmpty(): Promise<void> {
   const db = getDb();
-  const { cnt } = db.prepare('SELECT COUNT(*) as cnt FROM teams').get() as { cnt: number };
+  const countResult = await db.query('SELECT COUNT(*) as cnt FROM teams');
+  const cnt = parseInt(countResult.rows[0].cnt, 10);
   if (cnt > 0) {
     console.log(`✓ Seed: ${cnt} equipos ya existen, omitiendo seed`);
     return;
   }
 
-  const insertTeam = db.prepare(
-    'INSERT OR IGNORE INTO teams(id, name, country_code, category) VALUES(?,?,?,?)'
-  );
-  const insertPlayer = db.prepare(
-    'INSERT OR IGNORE INTO players(id, name, team_id, position) VALUES(?,?,?,?)'
-  );
-
+  const client = await db.connect();
   let teamCount = 0;
   let playerCount = 0;
 
-  db.transaction(() => {
+  try {
+    await client.query('BEGIN');
     for (const team of TEAMS) {
-      insertTeam.run(team.id, team.name, team.code, team.category);
+      await client.query(
+        'INSERT INTO teams(id, name, country_code, category) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+        [team.id, team.name, team.code, team.category]
+      );
       teamCount++;
       for (const p of team.players) {
-        insertPlayer.run(uuid(), p.name, team.id, p.pos);
+        await client.query(
+          'INSERT INTO players(id, name, team_id, position) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+          [uuid(), p.name, team.id, p.pos]
+        );
         playerCount++;
       }
     }
-  })();
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 
   console.log(`✓ Seed: ${teamCount} equipos insertados`);
   console.log(`✓ Seed: ${playerCount} jugadores insertados`);
@@ -1387,7 +1397,5 @@ export function runSeedIfEmpty(): void {
 
 // Ejecutable directo: ts-node src/scripts/seed.ts
 if (require.main === module) {
-  runMigrations();
-  runSeedIfEmpty();
-  process.exit(0);
+  runMigrations().then(() => runSeedIfEmpty()).then(() => process.exit(0)).catch(console.error);
 }

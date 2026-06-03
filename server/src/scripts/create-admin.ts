@@ -9,15 +9,22 @@ import { runMigrations } from '../db/migrate';
 import dotenv from 'dotenv';
 dotenv.config();
 
-runMigrations();
+async function main() {
+  await runMigrations();
 
-const [,, email, password] = process.argv;
-if (!email || !password) {
-  console.error('Uso: ts-node create-admin.ts <email> <password>');
-  process.exit(1);
+  const [,, email, password] = process.argv;
+  if (!email || !password) {
+    console.error('Uso: ts-node create-admin.ts <email> <password>');
+    process.exit(1);
+  }
+
+  const hash = bcrypt.hashSync(password, 12);
+  await getDb().query(
+    'INSERT INTO admin_users(id,email,password_hash) VALUES($1,$2,$3) ON CONFLICT(email) DO UPDATE SET password_hash=EXCLUDED.password_hash',
+    [uuid(), email, hash]
+  );
+  console.log(`✓ Admin creado/actualizado: ${email}`);
+  process.exit(0);
 }
 
-const hash = bcrypt.hashSync(password, 12);
-getDb().prepare('INSERT INTO admin_users(id,email,password_hash) VALUES(?,?,?) ON CONFLICT(email) DO UPDATE SET password_hash=excluded.password_hash').run(uuid(), email, hash);
-console.log(`✓ Admin creado/actualizado: ${email}`);
-process.exit(0);
+main().catch(console.error);

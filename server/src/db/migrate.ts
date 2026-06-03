@@ -1,27 +1,23 @@
+import { getDb } from './database';
 import fs from 'fs';
 import path from 'path';
-import { getDb } from './database';
 
-export function runMigrations(): void {
+export async function runMigrations(): Promise<void> {
   const db = getDb();
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
-  db.exec(schema);
-
-  // Columnas añadidas después de la creación inicial de la tabla porras
-  const addIfMissing = [
-    "ALTER TABLE porras ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'",
-    "ALTER TABLE porras ADD COLUMN submitted_email TEXT",
-    "ALTER TABLE porras ADD COLUMN submitted_data_json TEXT",
+  await db.query(schema);
+  // Add columns if missing (idempotent ALTER TABLE)
+  const alters = [
+    "ALTER TABLE porras ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_email TEXT",
+    "ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_data_json TEXT",
   ];
-  for (const stmt of addIfMissing) {
-    try { db.exec(stmt); } catch { /* columna ya existe */ }
+  for (const sql of alters) {
+    await db.query(sql).catch(() => {});
   }
-
   console.log('✓ Migrations applied');
 }
 
-// Ejecutable directo: ts-node src/db/migrate.ts
 if (require.main === module) {
-  runMigrations();
-  process.exit(0);
+  runMigrations().then(() => process.exit(0)).catch(console.error);
 }

@@ -3,50 +3,55 @@ import { getDb } from '../db/database';
 import { MatchRecord, TeamPhaseResultRecord } from '../types';
 
 export const MatchesRepo = {
-  findAll(): MatchRecord[] {
-    return getDb().prepare(`SELECT id,phase,home_team_id,away_team_id,match_date,status,
-      home_score,away_score,decided_by_penalties,penalty_winner_id FROM matches ORDER BY match_date`).all() as MatchRecord[];
+  async findAll(): Promise<MatchRecord[]> {
+    const result = await getDb().query(`SELECT id,phase,home_team_id,away_team_id,match_date,status,
+      home_score,away_score,decided_by_penalties,penalty_winner_id FROM matches ORDER BY match_date`);
+    return result.rows as MatchRecord[];
   },
 
-  findById(id: string): MatchRecord | undefined {
-    return getDb().prepare(`SELECT id,phase,home_team_id,away_team_id,match_date,status,
-      home_score,away_score,decided_by_penalties,penalty_winner_id FROM matches WHERE id=?`).get(id) as MatchRecord | undefined;
+  async findById(id: string): Promise<MatchRecord | undefined> {
+    const result = await getDb().query(`SELECT id,phase,home_team_id,away_team_id,match_date,status,
+      home_score,away_score,decided_by_penalties,penalty_winner_id FROM matches WHERE id=$1`, [id]);
+    return result.rows[0] as MatchRecord | undefined;
   },
 
-  create(data: Omit<MatchRecord, 'id'>): MatchRecord {
+  async create(data: Omit<MatchRecord, 'id'>): Promise<MatchRecord> {
     const id = uuid();
-    getDb().prepare(`INSERT INTO matches(id,phase,home_team_id,away_team_id,match_date,status,
+    await getDb().query(`INSERT INTO matches(id,phase,home_team_id,away_team_id,match_date,status,
       home_score,away_score,decided_by_penalties,penalty_winner_id)
-      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
-      id, data.phase, data.home_team_id, data.away_team_id, data.match_date ?? null,
-      data.status, data.home_score ?? null, data.away_score ?? null,
-      data.decided_by_penalties, data.penalty_winner_id ?? null,
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, data.phase, data.home_team_id, data.away_team_id, data.match_date ?? null,
+        data.status, data.home_score ?? null, data.away_score ?? null,
+        data.decided_by_penalties, data.penalty_winner_id ?? null],
     );
     return { id, ...data };
   },
 
-  update(id: string, data: Partial<Omit<MatchRecord, 'id'>>): void {
-    const fields = Object.keys(data).map(k => `${k}=?`).join(',');
-    getDb().prepare(`UPDATE matches SET ${fields} WHERE id=?`).run(...Object.values(data), id);
+  async update(id: string, data: Partial<Omit<MatchRecord, 'id'>>): Promise<void> {
+    const keys = Object.keys(data);
+    const fields = keys.map((k, i) => `${k}=$${i + 1}`).join(',');
+    await getDb().query(`UPDATE matches SET ${fields} WHERE id=$${keys.length + 1}`, [...Object.values(data), id]);
   },
 
-  delete(id: string): void {
-    getDb().prepare('DELETE FROM matches WHERE id=?').run(id);
+  async delete(id: string): Promise<void> {
+    await getDb().query('DELETE FROM matches WHERE id=$1', [id]);
   },
 };
 
 export const PhaseResultsRepo = {
-  findAll(): TeamPhaseResultRecord[] {
-    return getDb().prepare('SELECT id,team_id,phase,result FROM team_phase_results').all() as TeamPhaseResultRecord[];
+  async findAll(): Promise<TeamPhaseResultRecord[]> {
+    const result = await getDb().query('SELECT id,team_id,phase,result FROM team_phase_results');
+    return result.rows as TeamPhaseResultRecord[];
   },
 
-  upsert(teamId: string, phase: string, result: string): void {
+  async upsert(teamId: string, phase: string, result: string): Promise<void> {
     const id = uuid();
-    getDb().prepare(`INSERT INTO team_phase_results(id,team_id,phase,result) VALUES(?,?,?,?)
-      ON CONFLICT(team_id,phase) DO UPDATE SET result=excluded.result`).run(id, teamId, phase, result);
+    await getDb().query(`INSERT INTO team_phase_results(id,team_id,phase,result) VALUES($1,$2,$3,$4)
+      ON CONFLICT(team_id,phase) DO UPDATE SET result=EXCLUDED.result`,
+      [id, teamId, phase, result]);
   },
 
-  delete(teamId: string, phase: string): void {
-    getDb().prepare('DELETE FROM team_phase_results WHERE team_id=? AND phase=?').run(teamId, phase);
+  async delete(teamId: string, phase: string): Promise<void> {
+    await getDb().query('DELETE FROM team_phase_results WHERE team_id=$1 AND phase=$2', [teamId, phase]);
   },
 };

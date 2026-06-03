@@ -10,23 +10,25 @@ export interface ScoreRow {
 }
 
 export const ScoresRepo = {
-  findAll(): ScoreRow[] {
-    return getDb().prepare('SELECT id,porra_id,total_points,breakdown_json,calculated_at FROM porra_scores ORDER BY total_points DESC').all() as ScoreRow[];
+  async findAll(): Promise<ScoreRow[]> {
+    const result = await getDb().query('SELECT id,porra_id,total_points,breakdown_json,calculated_at FROM porra_scores ORDER BY total_points DESC');
+    return result.rows as ScoreRow[];
   },
 
-  findByPorra(porraId: string): ScoreRow | undefined {
-    return getDb().prepare('SELECT id,porra_id,total_points,breakdown_json,calculated_at FROM porra_scores WHERE porra_id=?').get(porraId) as ScoreRow | undefined;
+  async findByPorra(porraId: string): Promise<ScoreRow | undefined> {
+    const result = await getDb().query('SELECT id,porra_id,total_points,breakdown_json,calculated_at FROM porra_scores WHERE porra_id=$1', [porraId]);
+    return result.rows[0] as ScoreRow | undefined;
   },
 
-  upsert(porraId: string, totalPoints: number, breakdown: unknown): void {
+  async upsert(porraId: string, totalPoints: number, breakdown: unknown): Promise<void> {
     const id = uuid();
-    getDb().prepare(`
+    await getDb().query(`
       INSERT INTO porra_scores(id,porra_id,total_points,breakdown_json,calculated_at)
-      VALUES(?,?,?,?,datetime('now'))
+      VALUES($1,$2,$3,$4,NOW())
       ON CONFLICT(porra_id) DO UPDATE SET
-        total_points=excluded.total_points,
-        breakdown_json=excluded.breakdown_json,
-        calculated_at=excluded.calculated_at
-    `).run(id, porraId, totalPoints, JSON.stringify(breakdown));
+        total_points=EXCLUDED.total_points,
+        breakdown_json=EXCLUDED.breakdown_json,
+        calculated_at=EXCLUDED.calculated_at
+    `, [id, porraId, totalPoints, JSON.stringify(breakdown)]);
   },
 };

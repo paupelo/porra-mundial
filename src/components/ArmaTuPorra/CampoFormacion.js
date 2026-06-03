@@ -39,7 +39,7 @@ function selInfo(id) {
 }
 
 /** Círculo de jugador o placeholder vacío */
-function SlotJugador({ slot, jugador }) {
+function SlotJugador({ slot, jugador, onRemove }) {
   const info      = jugador ? selInfo(jugador.seleccionId) : null;
   const cat       = jugador ? getCategoria(jugador.seleccionId) : null;
   const color     = cat ? getCatColor(cat) : null;
@@ -70,14 +70,24 @@ function SlotJugador({ slot, jugador }) {
     );
   }
 
+  const clickable = !!onRemove;
+
   return (
-    <g>
+    <g
+      onClick={clickable ? () => onRemove(jugador) : undefined}
+      style={clickable ? { cursor: 'pointer' } : {}}
+      role={clickable ? 'button' : undefined}
+      aria-label={clickable ? `Quitar ${jugador.nombre}` : undefined}
+    >
       {/* Sombra */}
       <circle cx={slot.cx + 1} cy={slot.cy + 2} r="21" fill="rgba(0,0,0,0.28)" />
       {/* Círculo coloreado */}
       <circle cx={slot.cx} cy={slot.cy} r="21" fill={color} stroke="white" strokeWidth="2" />
-      {/* Anillo interior sutil */}
-      <circle cx={slot.cx} cy={slot.cy} r="19" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+      {/* Anillo interior — ✕ si es clickable */}
+      {clickable
+        ? <text x={slot.cx} y={slot.cy - 2} textAnchor="middle" fontSize="10" fontWeight="900" fill="rgba(255,255,255,0.0)" className="cf-remove-hint">✕</text>
+        : <circle cx={slot.cx} cy={slot.cy} r="19" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+      }
       {/* Bandera */}
       <text
         x={slot.cx} y={slot.cy - 3}
@@ -117,7 +127,7 @@ function SlotJugador({ slot, jugador }) {
  *   titular  — [{id, nombre, posicion, seleccionId, esCopitan}]
  *   suplentes — mismo formato
  */
-function CampoFormacion({ titular, suplentes }) {
+function CampoFormacion({ titular, suplentes, onRemoveTitular, onRemoveSuplente }) {
   const byPos    = pos => titular.filter(j => j.posicion === pos);
   const supByPos = pos => suplentes.find(j => j.posicion === pos) ?? null;
 
@@ -250,6 +260,7 @@ function CampoFormacion({ titular, suplentes }) {
             key={`${slot.pos}-${slot.idx}`}
             slot={slot}
             jugador={byPos(slot.pos)[slot.idx] ?? null}
+            onRemove={onRemoveTitular}
           />
         ))}
       </svg>
@@ -272,12 +283,15 @@ function CampoFormacion({ titular, suplentes }) {
                 key={pos}
                 className={`cf-sup-chip ${jug ? 'cf-sup-chip--lleno' : 'cf-sup-chip--vacio'}`}
                 style={color ? { '--cf-color': color } : {}}
+                onClick={jug && onRemoveSuplente ? () => onRemoveSuplente(jug) : undefined}
+                title={jug && onRemoveSuplente ? `Quitar ${jug.nombre}` : undefined}
               >
                 {jug ? (
                   <>
                     <span className="cf-sup-bandera">{info?.bandera}</span>
                     <span className="cf-sup-nombre">{apellido}</span>
                     <span className="cf-sup-pos">{jug.posicion}</span>
+                    {onRemoveSuplente && <span className="cf-sup-remove">✕</span>}
                   </>
                 ) : (
                   <>

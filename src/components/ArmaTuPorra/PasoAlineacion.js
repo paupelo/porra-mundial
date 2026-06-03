@@ -285,7 +285,12 @@ function PasoAlineacion({ porra, setPorra }) {
         {/* ── Panel derecho: campo visual ──────────────────────────── */}
         <div className="alineacion-panel-der">
           <h4>Tu 11 titular</h4>
-          <CampoFormacion titular={porra.titular} suplentes={porra.suplentes} />
+          <CampoFormacion
+            titular={porra.titular}
+            suplentes={porra.suplentes}
+            onRemoveTitular={toggleTitular}
+            onRemoveSuplente={toggleSuplente}
+          />
           {errores.length > 0 && (
             <div className="errores-alineacion">
               {errores.map((e, i) => <p key={i}>{e}</p>)}

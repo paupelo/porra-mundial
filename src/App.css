@@ -202,3 +202,134 @@ body {
   font-weight: 600;
   margin-top: 4px;
 }
+
+/* ── Campo formacion: cursor pointer en fichas clicables ─────────────────── */
+.cf-sup-chip--lleno {
+  cursor: default;
+}
+.cf-sup-chip--lleno[title] {
+  cursor: pointer;
+}
+.cf-sup-remove {
+  font-size: 0.65rem;
+  opacity: 0.55;
+  margin-left: 4px;
+}
+
+/* ── RESPONSIVE MÓVIL ────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  /* Header */
+  .app-header {
+    padding: 12px 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header-title {
+    font-size: 0.95rem;
+  }
+
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .app-header nav {
+    gap: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .app-header nav a {
+    font-size: 0.78rem;
+    padding: 7px 12px;
+  }
+
+  /* Hero */
+  .hero {
+    flex-direction: column-reverse;
+    padding: 32px 24px 24px;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .hero-content {
+    max-width: 100%;
+  }
+
+  .hero-content h2 {
+    font-size: 3rem;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+
+  .hero-content p {
+    font-size: 0.95rem;
+    margin-bottom: 28px;
+    max-width: 100%;
+  }
+
+  .inicio-badge {
+    font-size: 0.72rem;
+    margin-bottom: 18px;
+  }
+
+  .btn-principal {
+    padding: 14px 36px;
+    font-size: 0.9rem;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .hero-logo {
+    flex: none;
+  }
+
+  .mundial-logo {
+    width: 180px;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    padding: 28px 20px;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+
+  .stat {
+    width: 50%;
+    padding: 16px 0;
+    border-right: none;
+    border-bottom: 1px solid #e8edf5;
+  }
+
+  .stat:nth-child(1),
+  .stat:nth-child(2) {
+    border-bottom: 1px solid #e8edf5;
+  }
+
+  .stat:nth-child(odd) {
+    border-right: 1px solid #e8edf5;
+  }
+
+  .stat:nth-child(3),
+  .stat:nth-child(4) {
+    border-bottom: none;
+  }
+
+  .stat-number {
+    font-size: 2.2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-content h2 {
+    font-size: 2.4rem;
+  }
+
+  .app-header nav a {
+    font-size: 0.73rem;
+    padding: 6px 10px;
+  }
+}

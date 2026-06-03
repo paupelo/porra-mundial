@@ -29,11 +29,12 @@ export default function AdminPorras() {
 
   const load = useCallback(async () => {
     const endpoint = tab === 'pending' ? '/admin/porras/pending' : '/admin/porras';
-    const [p, t, pl] = await Promise.all([apiGet(endpoint), apiGet('/admin/teams'), apiGet('/admin/players')]);
+    const [p, t] = await Promise.all([apiGet(endpoint), apiGet('/admin/teams')]);
     setPorras(p);
     setTeams(t);
-    setPlayers(pl);
     setChecked(new Set());
+    // Players se carga aparte para no bloquear si hay un error
+    apiGet('/admin/players').then(setPlayers).catch(() => {});
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
@@ -297,20 +298,18 @@ function SubmittedDataPreview({ data, teamMap = {} }) {
 }
 
 const POS_LABEL = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
-const ROL_COLOR = { titular: '#1d4ed8', suplente: '#6b7280' };
 
 function LineupPreview({ lineup, submittedJson, playerMap = {}, teamMap = {} }) {
-  // Preferimos datos estructurados; si no hay, leemos el JSON crudo
-  let entries = lineup ?? [];
-  if (entries.length === 0 && submittedJson) {
+  // Fuente 1: datos estructurados de porra_lineup
+  // Fuente 2 (fallback): submitted_data_json siempre disponible
+  let entries = [];
+
+  if (Array.isArray(lineup) && lineup.length > 0) {
+    entries = lineup;
+  } else if (submittedJson) {
     try {
       const parsed = JSON.parse(submittedJson);
-      entries = (parsed.lineup ?? []).map(l => ({
-        player_id: l.player_id,
-        role: l.role,
-        position_slot: l.position_slot,
-        is_captain: l.is_captain,
-      }));
+      entries = parsed.lineup ?? [];
     } catch { /* noop */ }
   }
 
@@ -321,40 +320,44 @@ function LineupPreview({ lineup, submittedJson, playerMap = {}, teamMap = {} }) 
   const titulares = entries.filter(l => l.role === 'titular');
   const suplentes = entries.filter(l => l.role === 'suplente');
 
-  const renderEntry = (l, idx) => {
-    const p = playerMap[l.player_id];
-    const t = p ? teamMap[p.team_id] : null;
+  const Chip = ({ l, i }) => {
+    const player = playerMap[l.player_id];
+    const team   = player ? teamMap[player.team_id] : null;
+    const pos    = POS_LABEL[l.position_slot] ?? l.position_slot?.slice(0,3).toUpperCase();
+    const name   = player ? player.name : '—';
     return (
-      <span key={idx} style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
+      <div key={i} style={{
+        display: 'flex', alignItems: 'center', gap: 6,
         background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
-        padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600,
-        color: '#374151',
+        padding: '5px 10px', fontSize: '0.8rem', color: '#1e293b',
       }}>
-        <span style={{ fontSize: '0.7rem', background: ROL_COLOR[l.role], color: '#fff', borderRadius: 4, padding: '1px 5px' }}>
-          {POS_LABEL[l.position_slot] ?? l.position_slot}
-        </span>
-        {p ? p.name : l.player_id}
-        {t && <span style={{ fontSize: '0.75rem', color: CAT_COLORS[t.category] ?? '#6b7280' }}>({t.name})</span>}
-        {l.is_captain ? ' ©' : ''}
-      </span>
+        <span style={{
+          background: l.role === 'titular' ? '#1d4ed8' : '#6b7280',
+          color: '#fff', borderRadius: 4, padding: '1px 5px', fontSize: '0.68rem', fontWeight: 700,
+        }}>{pos}</span>
+        <span style={{ fontWeight: 600 }}>{name}</span>
+        {team && <span style={{ color: CAT_COLORS[team.category] ?? '#64748b', fontSize: '0.73rem' }}>({team.name})</span>}
+        {l.is_captain === 1 || l.is_captain === true ? <span style={{ color: '#f59e0b', fontWeight: 800 }}>©</span> : null}
+      </div>
     );
   };
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Titulares ({titulares.length})</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-        {titulares.map(renderEntry)}
+      <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
+        Titulares ({titulares.length})
       </div>
-      {suplentes.length > 0 && (
-        <>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Suplentes ({suplentes.length})</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {suplentes.map(renderEntry)}
-          </div>
-        </>
-      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+        {titulares.map((l, i) => <Chip key={i} l={l} i={i} />)}
+      </div>
+      {suplentes.length > 0 && <>
+        <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
+          Suplentes ({suplentes.length})
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {suplentes.map((l, i) => <Chip key={i} l={l} i={i} />)}
+        </div>
+      </>}
     </div>
   );
 }

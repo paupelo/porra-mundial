@@ -1,23 +1,18 @@
-import React, { useState } from 'react';
-import { SELECCIONES, CATEGORIAS, getJugadoresMock } from './datos';
+import React, { useState, useEffect, useMemo } from 'react';
+import { SELECCIONES, CATEGORIAS } from './datos';
 import CampoFormacion from './CampoFormacion';
 
-const POSICIONES_TITULAR = [
-  { pos: 'POR', cantidad: 1, label: 'Portero' },
-  { pos: 'DEF', cantidad: 3, label: 'Defensas' },
-  { pos: 'MED', cantidad: 4, label: 'Medios' },
-  { pos: 'DEL', cantidad: 3, label: 'Delanteros' },
-];
+// Posición de la API → código interno del wizard
+const POS_API = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
+// Código interno → etiqueta de sección
+const POS_LABEL = { POR: 'Porteros', DEF: 'Defensas', MED: 'Medios', DEL: 'Delanteros' };
 
+const CUPOS_TITULAR = { POR: 1, DEF: 3, MED: 4, DEL: 3 };
 
-function getCategoria(seleccionId) {
-  const sel = SELECCIONES.find(s => s.id === seleccionId);
-  return sel ? sel.categoria : null;
-}
+// ─── Validación exportada (usada en ArmaTuPorra.js) ──────────────────────────
 
-function getCatColor(categoriaId) {
-  const cat = Object.values(CATEGORIAS).find(c => c.id === categoriaId);
-  return cat?.color || '#003DA5';
+function getCategoriaDeSeleccion(seleccionId) {
+  return SELECCIONES.find(s => s.id === seleccionId)?.categoria ?? null;
 }
 
 export function validarAlineacion(porra) {
@@ -28,8 +23,8 @@ export function validarAlineacion(porra) {
     return errores;
   }
 
-  const catCount = (cat) =>
-    porra.titular.filter(j => getCategoria(j.seleccionId) === cat).length;
+  const catCount = cat =>
+    porra.titular.filter(j => getCategoriaDeSeleccion(j.seleccionId) === cat).length;
 
   if (catCount('cacaDeLaVaca') < 2)
     errores.push('Necesitas al menos 2 titulares de Caca de la Vaca.');
@@ -39,7 +34,7 @@ export function validarAlineacion(porra) {
     errores.push('Necesitas al menos 3 titulares de Sorpresas.');
 
   const supFavoritos = porra.suplentes.filter(
-    j => getCategoria(j.seleccionId) === 'favoritos'
+    j => getCategoriaDeSeleccion(j.seleccionId) === 'favoritos'
   ).length;
   if (supFavoritos > 1)
     errores.push('Solo 1 de los 3 suplentes puede ser de Favoritos.');
@@ -47,40 +42,84 @@ export function validarAlineacion(porra) {
   if (!porra.titular.some(j => j.esCopitan))
     errores.push('Debes elegir un Capitán entre los titulares.');
 
+  const porSeleccion = {};
+  for (const j of [...porra.titular, ...porra.suplentes]) {
+    porSeleccion[j.seleccionId] = (porSeleccion[j.seleccionId] ?? 0) + 1;
+    if (porSeleccion[j.seleccionId] > 2) {
+      errores.push('Máximo 2 jugadores de la misma selección.');
+      break;
+    }
+  }
+
   return errores;
 }
 
+// ─── Componente ──────────────────────────────────────────────────────────────
+
 function PasoAlineacion({ porra, setPorra }) {
-  const [catSelectorActiva, setCatSelectorActiva] = useState('favoritos');
-  const [seleccionActiva, setSeleccionActiva] = useState(
-    SELECCIONES.find(s => s.categoria === 'favoritos')?.id || SELECCIONES[0].id
+  const [jugadoresApi, setJugadoresApi] = useState([]); // todos los jugadores del API
+  const [cargando, setCargando] = useState(true);
+  const [errorApi, setErrorApi] = useState('');
+
+  const equiposElegidos = SELECCIONES;
+  const categoriasConEquipos = Object.values(CATEGORIAS);
+
+  const [catActiva, setCatActiva] = useState(() =>
+    categoriasConEquipos[0]?.id ?? 'favoritos'
+  );
+  const [seleccionActiva, setSeleccionActiva] = useState(() =>
+    equiposElegidos.find(e => e.categoria === catActiva)?.id ?? equiposElegidos[0]?.id
   );
 
-  const jugadoresMock = seleccionActiva ? getJugadoresMock(seleccionActiva) : [];
+  // Carga todos los jugadores una sola vez
+  useEffect(() => {
+    fetch('/api/players')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        // Mapear al formato interno del wizard
+        const mapped = data.map(j => ({
+          id: j.id,
+          nombre: j.name,
+          posicion: POS_API[j.position] ?? 'MED',
+          seleccionId: j.team_id,
+        }));
+        setJugadoresApi(mapped);
+        setCargando(false);
+      })
+      .catch(err => {
+        setErrorApi('No se pudieron cargar los jugadores. ' + err.message);
+        setCargando(false);
+      });
+  }, []);
 
-  function seleccionInfo(id) {
-    return SELECCIONES.find(s => s.id === id);
+  // Jugadores del equipo actualmente seleccionado
+  const jugadoresActivos = useMemo(
+    () => jugadoresApi.filter(j => j.seleccionId === seleccionActiva),
+    [jugadoresApi, seleccionActiva]
+  );
+
+  // ─── Helpers de estado ───────────────────────────────────────────────────
+
+  function esTitular(id) { return porra.titular.some(j => j.id === id); }
+  function esSuplente(id) { return porra.suplentes.some(j => j.id === id); }
+  function titularesPorPos(pos) { return porra.titular.filter(j => j.posicion === pos); }
+  function suplentesPorPos(pos) { return porra.suplentes.filter(j => j.posicion === pos); }
+  function infoBanderas(id) { return SELECCIONES.find(s => s.id === id); }
+  function jugadoresDe(seleccionId) {
+    return porra.titular.filter(j => j.seleccionId === seleccionId).length
+         + porra.suplentes.filter(j => j.seleccionId === seleccionId).length;
   }
 
-  function esTitular(jugadorId) {
-    return porra.titular.some(j => j.id === jugadorId);
+  function cambiarCategoria(catId) {
+    setCatActiva(catId);
+    const primero = equiposElegidos.find(e => e.categoria === catId);
+    if (primero) setSeleccionActiva(primero.id);
   }
 
-  function esSuplente(jugadorId) {
-    return porra.suplentes.some(j => j.id === jugadorId);
-  }
-
-  function titularesPorPos(pos) {
-    return porra.titular.filter(j => j.posicion === pos);
-  }
-
-  function suplentesPorPos(pos) {
-    return porra.suplentes.filter(j => j.posicion === pos);
-  }
-
-  function maxTitularesPorPos(pos) {
-    return POSICIONES_TITULAR.find(p => p.pos === pos)?.cantidad || 0;
-  }
+  // ─── Acciones ─────────────────────────────────────────────────────────────
 
   function toggleTitular(jugador) {
     if (esTitular(jugador.id)) {
@@ -88,17 +127,17 @@ function PasoAlineacion({ porra, setPorra }) {
         ...prev,
         titular: prev.titular.filter(j => j.id !== jugador.id),
       }));
-    } else if (esSuplente(jugador.id)) {
       return;
-    } else {
-      const maxPos = maxTitularesPorPos(jugador.posicion);
-      const actualesPos = titularesPorPos(jugador.posicion).length;
-      if (actualesPos < maxPos) {
-        setPorra(prev => ({
-          ...prev,
-          titular: [...prev.titular, { ...jugador, esCopitan: false }],
-        }));
-      }
+    }
+    if (esSuplente(jugador.id)) return;
+    if (jugadoresDe(jugador.seleccionId) >= 2) return;
+
+    const maxPos = CUPOS_TITULAR[jugador.posicion] ?? 0;
+    if (titularesPorPos(jugador.posicion).length < maxPos) {
+      setPorra(prev => ({
+        ...prev,
+        titular: [...prev.titular, { ...jugador, esCopitan: false }],
+      }));
     }
   }
 
@@ -108,16 +147,17 @@ function PasoAlineacion({ porra, setPorra }) {
         ...prev,
         suplentes: prev.suplentes.filter(j => j.id !== jugador.id),
       }));
-    } else if (esTitular(jugador.id)) {
       return;
-    } else {
-      const supPos = suplentesPorPos(jugador.posicion).length;
-      if (supPos < 1 && jugador.posicion !== 'POR') {
-        setPorra(prev => ({
-          ...prev,
-          suplentes: [...prev.suplentes, jugador],
-        }));
-      }
+    }
+    if (esTitular(jugador.id)) return;
+    if (jugador.posicion === 'POR') return;
+    if (jugadoresDe(jugador.seleccionId) >= 2) return;
+
+    if (suplentesPorPos(jugador.posicion).length < 1) {
+      setPorra(prev => ({
+        ...prev,
+        suplentes: [...prev.suplentes, jugador],
+      }));
     }
   }
 
@@ -131,24 +171,21 @@ function PasoAlineacion({ porra, setPorra }) {
     }));
   }
 
-  function cambiarCategoria(catId) {
-    setCatSelectorActiva(catId);
-    const primero = SELECCIONES.find(s => s.categoria === catId);
-    if (primero) setSeleccionActiva(primero.id);
-  }
-
   const errores = validarAlineacion(porra);
+  const equiposDeCategoria = equiposElegidos.filter(e => e.categoria === catActiva);
 
   return (
     <div className="paso-alineacion">
       <div className="alineacion-layout">
-        {/* Panel izquierdo */}
+        {/* ── Panel izquierdo ─────────────────────────────────────────── */}
         <div className="alineacion-panel-izq">
+
+          {/* Tabs de categoría */}
           <div className="tabs-categorias">
-            {Object.values(CATEGORIAS).map(cat => (
+            {categoriasConEquipos.map(cat => (
               <button
                 key={cat.id}
-                className={`tab-categoria ${catSelectorActiva === cat.id ? 'activo' : ''}`}
+                className={`tab-categoria ${catActiva === cat.id ? 'activo' : ''}`}
                 style={{ '--color-cat': cat.color }}
                 onClick={() => cambiarCategoria(cat.id)}
                 type="button"
@@ -158,12 +195,13 @@ function PasoAlineacion({ porra, setPorra }) {
             ))}
           </div>
 
+          {/* Botones de selección */}
           <div className="selector-seleccion">
-            {SELECCIONES.filter(s => s.categoria === catSelectorActiva).map(equipo => (
+            {equiposDeCategoria.map(equipo => (
               <button
                 key={equipo.id}
                 className={`btn-seleccion ${seleccionActiva === equipo.id ? 'activo' : ''}`}
-                style={{ '--color-cat': getCatColor(equipo.categoria) }}
+                style={{ '--color-cat': Object.values(CATEGORIAS).find(c => c.id === equipo.categoria)?.color }}
                 onClick={() => setSeleccionActiva(equipo.id)}
                 type="button"
               >
@@ -173,38 +211,50 @@ function PasoAlineacion({ porra, setPorra }) {
             ))}
           </div>
 
-          {seleccionActiva && (
+          {/* Lista de jugadores */}
+          {cargando ? (
+            <div className="jugadores-estado">Cargando jugadores…</div>
+          ) : errorApi ? (
+            <div className="jugadores-estado jugadores-error">{errorApi}</div>
+          ) : (
             <div className="lista-jugadores">
-              <h4>{seleccionInfo(seleccionActiva)?.nombre} — Elige jugadores</h4>
+              <h4>
+                {infoBanderas(seleccionActiva)?.bandera}{' '}
+                {infoBanderas(seleccionActiva)?.nombre} — Elige jugadores
+              </h4>
+
               {['POR', 'DEF', 'MED', 'DEL'].map(pos => {
-                const jugadoresPos = jugadoresMock.filter(j => j.posicion === pos);
-                const labelPos = { POR: 'Porteros', DEF: 'Defensas', MED: 'Medios', DEL: 'Delanteros' }[pos];
+                const jugadoresPos = jugadoresActivos.filter(j => j.posicion === pos);
+                if (jugadoresPos.length === 0) return null;
+
                 return (
                   <div key={pos} className="grupo-posicion">
-                    <span className="label-posicion">{labelPos}</span>
+                    <span className="label-posicion">{POS_LABEL[pos]}</span>
                     {jugadoresPos.map(jugador => {
                       const esTit = esTitular(jugador.id);
                       const esSup = esSuplente(jugador.id);
-                      const maxTit = maxTitularesPorPos(pos);
-                      const titActuales = titularesPorPos(pos).length;
-                      const supActuales = suplentesPorPos(pos).length;
-                      const puedeSerTitular = !esTit && !esSup && titActuales < maxTit;
-                      const puedeSerSuplente = !esTit && !esSup && supActuales < 1 && pos !== 'POR';
+                      const cupoTit = CUPOS_TITULAR[pos] ?? 0;
+                      const limiteSeleccion = jugadoresDe(jugador.seleccionId) >= 2;
+                      const puedeSerTitular = !esTit && !esSup && titularesPorPos(pos).length < cupoTit && !limiteSeleccion;
+                      const puedeSerSuplente = !esTit && !esSup && pos !== 'POR' && suplentesPorPos(pos).length < 1 && !limiteSeleccion;
 
                       return (
-                        <div key={jugador.id} className={`fila-jugador ${esTit ? 'es-titular' : ''} ${esSup ? 'es-suplente' : ''}`}>
+                        <div
+                          key={jugador.id}
+                          className={`fila-jugador${esTit ? ' es-titular' : ''}${esSup ? ' es-suplente' : ''}`}
+                        >
                           <span className="jugador-nombre">{jugador.nombre}</span>
                           <div className="jugador-acciones">
                             {esTit && (
                               <button
-                                className={`btn-copitan ${porra.titular.find(j => j.id === jugador.id)?.esCopitan ? 'activo' : ''}`}
+                                className={`btn-copitan${porra.titular.find(j => j.id === jugador.id)?.esCopitan ? ' activo' : ''}`}
                                 onClick={() => toggleCopitan(jugador.id)}
                                 type="button"
                                 title="Capitán"
                               >C</button>
                             )}
                             <button
-                              className={`btn-rol titular ${esTit ? 'activo' : ''}`}
+                              className={`btn-rol titular${esTit ? ' activo' : ''}`}
                               onClick={() => toggleTitular(jugador)}
                               disabled={!esTit && !puedeSerTitular}
                               type="button"
@@ -213,7 +263,7 @@ function PasoAlineacion({ porra, setPorra }) {
                             </button>
                             {pos !== 'POR' && (
                               <button
-                                className={`btn-rol suplente ${esSup ? 'activo' : ''}`}
+                                className={`btn-rol suplente${esSup ? ' activo' : ''}`}
                                 onClick={() => toggleSuplente(jugador)}
                                 disabled={!esSup && !puedeSerSuplente}
                                 type="button"
@@ -232,7 +282,7 @@ function PasoAlineacion({ porra, setPorra }) {
           )}
         </div>
 
-        {/* Panel derecho: campo de fútbol visual */}
+        {/* ── Panel derecho: campo visual ──────────────────────────── */}
         <div className="alineacion-panel-der">
           <h4>Tu 11 titular</h4>
           <CampoFormacion titular={porra.titular} suplentes={porra.suplentes} />

@@ -67,7 +67,7 @@ export const SELECCIONES = [
   { id: 'argelia', nombre: 'Argelia', bandera: '🇩🇿', categoria: 'petardazos' },
   { id: 'canada', nombre: 'Canadá', bandera: '🇨🇦', categoria: 'petardazos' },
   { id: 'catar', nombre: 'Catar', bandera: '🇶🇦', categoria: 'petardazos' },
-  { id: 'costa-marfil', nombre: 'Costa de Marfil', bandera: '🇨🇮', categoria: 'petardazos' },
+  { id: 'costa-de-marfil', nombre: 'Costa de Marfil', bandera: '🇨🇮', categoria: 'petardazos' },
   { id: 'egipto', nombre: 'Egipto', bandera: '🇪🇬', categoria: 'petardazos' },
   { id: 'escocia', nombre: 'Escocia', bandera: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', categoria: 'petardazos' },
   { id: 'irak', nombre: 'Irak', bandera: '🇮🇶', categoria: 'petardazos' },

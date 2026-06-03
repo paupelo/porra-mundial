@@ -295,6 +295,21 @@
   border-color: var(--color-cat);
 }
 
+.jugadores-estado {
+  padding: 24px 16px;
+  color: #9aa5b4;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.jugadores-error {
+  color: #b91c1c;
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+}
+
 .lista-jugadores h4 {
   font-size: 1rem;
   font-weight: 700;
@@ -609,6 +624,113 @@
   background: #fffbf0;
   border: 1px solid #f5a623;
   color: #c87f00;
+}
+
+/* ===== BLOQUE DE ENVÍO (datos del participante) ===== */
+.revision-envio {
+  border-color: #003DA5;
+}
+
+.revision-envio-desc {
+  color: #6b7c93;
+  font-size: 0.88rem;
+  margin-bottom: 20px;
+  margin-top: -8px;
+}
+
+.envio-campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.envio-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.envio-campo label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.envio-campo input {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.envio-campo input:focus {
+  border-color: #003DA5;
+}
+
+.envio-campo input:disabled {
+  background: #f8fafc;
+  color: #9aa5b4;
+}
+
+.envio-aviso {
+  background: #fffbf0;
+  border: 1px solid #f5a623;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  color: #92400e;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.envio-error {
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  color: #b91c1c;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+/* ===== PORRA CERRADA ===== */
+.porra-cerrada {
+  text-align: center;
+  padding: 64px 24px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.porra-cerrada-icono {
+  font-size: 4rem;
+  margin-bottom: 20px;
+}
+
+.porra-cerrada h3 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #003DA5;
+  margin-bottom: 12px;
+}
+
+.porra-cerrada p {
+  color: #6b7c93;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 600px) {
+  .envio-campos {
+    grid-template-columns: 1fr;
+  }
 }
 
 .btn-enviar {

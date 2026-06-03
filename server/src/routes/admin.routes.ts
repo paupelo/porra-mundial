@@ -7,6 +7,7 @@ import { EventsRepo } from '../repositories/events.repo';
 import { PorrasRepo, ParticipantsRepo } from '../repositories/porras.repo';
 import { ScoresRepo } from '../repositories/scores.repo';
 import { calcularClasificacion } from '../services/scoring/engine';
+import { sendRejectionEmail } from '../services/email';
 import { CalcInput } from '../types';
 
 const router = Router();
@@ -59,7 +60,8 @@ router.post('/participants',      (req, res)  => res.json(ParticipantsRepo.creat
 router.put('/participants/:id',   (req, res)  => { ParticipantsRepo.update(req.params.id, req.body); res.json({ ok: true }); });
 router.delete('/participants/:id',(req, res)  => { ParticipantsRepo.delete(req.params.id); res.json({ ok: true }); });
 
-router.get('/porras',             (_req, res) => res.json(PorrasRepo.findAllFull()));
+router.get('/porras',             (_req, res) => res.json(PorrasRepo.findAllFullAdmin()));
+router.get('/porras/pending',     (_req, res) => res.json(PorrasRepo.findPending()));
 router.post('/porras-create',     (req, res)  => res.json(PorrasRepo.create(req.body.participant_id)));
 router.post('/porras/:id/selections', (req, res) => {
   PorrasRepo.setSelections(req.params.id, req.body);
@@ -76,6 +78,31 @@ router.post('/porras/:id/mvp',    (req, res) => {
 router.post('/porras/:id/lock',   (req, res) => {
   PorrasRepo.lock(req.params.id);
   res.json({ ok: true });
+});
+router.post('/porras/:id/approve', (req, res) => {
+  PorrasRepo.setStatus(req.params.id, 'approved');
+  res.json({ ok: true });
+});
+router.post('/porras/:id/reject', async (req, res) => {
+  const full = PorrasRepo.findPending().find(f => f.porra.id === req.params.id)
+    ?? PorrasRepo._findAllFullWhere(`p.id = '${req.params.id}'`)[0];
+  PorrasRepo.setStatus(req.params.id, 'rejected');
+  if (full?.porra.submitted_email) {
+    await sendRejectionEmail(full.porra.submitted_email, full.participant?.name ?? '');
+  }
+  res.json({ ok: true });
+});
+router.put('/porras/:id/name', (req, res) => {
+  const { name } = req.body as { name: string };
+  const full = PorrasRepo._findAllFullWhere(`p.id = '${req.params.id}'`)[0];
+  if (!full) { res.status(404).json({ error: 'Porra no encontrada' }); return; }
+  ParticipantsRepo.update(full.participant.id, { name });
+  res.json({ ok: true });
+});
+router.post('/porras/bulk-approve', (req, res) => {
+  const { ids } = req.body as { ids: string[] };
+  for (const id of ids) PorrasRepo.setStatus(id, 'approved');
+  res.json({ approved: ids.length });
 });
 
 // ── Recalcular clasificación ────────────────────────────────────────────────

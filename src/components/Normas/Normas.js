@@ -277,6 +277,7 @@ export default function Normas() {
                 <li><span><strong>1</strong> Portero · <strong>3</strong> Defensas · <strong>4</strong> Medios · <strong>3</strong> Delanteros</span></li>
                 <li><span>Mínimo <strong>2 Caca de la Vaca ⚫</strong>, <strong>2 Petardazos 🟢</strong> y <strong>3 Sorpresas 🔵</strong> en el once</span></li>
                 <li><span><strong>Capitán:</strong> el jugador elegido como capitán puntúa <strong>el doble</strong></span></li>
+                <li><span>Máximo <strong>2 jugadores de la misma selección</strong> en tu once (titulares + suplentes en conjunto)</span></li>
                 <li><span><strong>3 suplentes</strong> (1 Defensa, 1 Medio, 1 Delantero). Máximo <strong>1 Favorito</strong> entre los suplentes</span></li>
                 <li><span>Suplentes puntúan la <strong>mitad</strong> mientras su línea esté completa. Si un titular de esa línea es expulsado o se lesiona, el suplente entra y suma <strong>puntos completos</strong>.</span></li>
               </ul>

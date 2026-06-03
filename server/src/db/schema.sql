@@ -78,12 +78,15 @@ CREATE TABLE IF NOT EXISTS participants (
 );
 
 CREATE TABLE IF NOT EXISTS porras (
-  id             TEXT PRIMARY KEY,
-  participant_id TEXT NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
-  mvp_player_id  TEXT REFERENCES players(id),
-  is_locked      INTEGER NOT NULL DEFAULT 0,
-  created_at     TEXT DEFAULT (datetime('now')),
-  updated_at     TEXT DEFAULT (datetime('now'))
+  id                   TEXT PRIMARY KEY,
+  participant_id       TEXT NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+  mvp_player_id        TEXT REFERENCES players(id),
+  is_locked            INTEGER NOT NULL DEFAULT 0,
+  status               TEXT NOT NULL DEFAULT 'pending',
+  submitted_email      TEXT,
+  submitted_data_json  TEXT,
+  created_at           TEXT DEFAULT (datetime('now')),
+  updated_at           TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS porra_selections (

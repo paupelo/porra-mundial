@@ -25,7 +25,7 @@ function puedeAvanzarPaso2(porra) {
 function ArmaTuPorra() {
   const [paso, setPaso] = useState(0);
   const [porra, setPorra] = useState(porraVacia());
-  const [enviada, setEnviada] = useState(false);
+  const [enviada, setEnviada] = useState(null); // null | { nombre, email, porraId }
 
   function avanzar() {
     if (paso < PASOS.length - 1) setPaso(p => p + 1);
@@ -35,9 +35,8 @@ function ArmaTuPorra() {
     if (paso > 0) setPaso(p => p - 1);
   }
 
-  function handleEnviar() {
-    console.log('PORRA ENVIADA:', porra);
-    setEnviada(true);
+  function handleEnviar(datos) {
+    setEnviada(datos);
   }
 
   const puedeAvanzar =
@@ -50,8 +49,8 @@ function ArmaTuPorra() {
         <div className="enviada-contenido">
           <div className="enviada-icono">🏆</div>
           <h2>¡Porra enviada!</h2>
-          <p>Tu porra ha sido registrada. Puedes ver los resultados en la clasificación cuando empiece el mundial.</p>
-          <p className="enviada-nota">(Revisa la consola del navegador para ver el objeto guardado)</p>
+          <p><strong>{enviada.nombre}</strong>, tu porra ha sido registrada y está pendiente de aprobación.</p>
+          <p>Cuando el administrador la apruebe aparecerás en la clasificación. Te avisaremos si hay algún problema.</p>
         </div>
       </div>
     );

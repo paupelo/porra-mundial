@@ -6,15 +6,28 @@ import { PlayersRepo } from '../repositories/players.repo';
 
 const router = Router();
 
-/** GET /api/clasificacion — ranking cacheado */
+/** GET /api/clasificacion — ranking de porras aprobadas */
 router.get('/clasificacion', (_req, res) => {
   const scores = ScoresRepo.findAll();
-  const porras = PorrasRepo.findAll();
-  const participants = PorrasRepo.findAll(); // joined below
-  const porraFull = PorrasRepo.findAllFull();
+  const approvedPorras = PorrasRepo.findAllFull(); // solo approved
 
-  const result = scores.map((s, idx) => {
-    const pf = porraFull.find(p => p.porra.id === s.porra_id);
+  // Porras aprobadas sin puntuación todavía (0 pts, orden alfabético)
+  const scoredIds = new Set(scores.map(s => s.porra_id));
+  const unscored = approvedPorras
+    .filter(pf => !scoredIds.has(pf.porra.id))
+    .map(pf => ({ porra_id: pf.porra.id, total_points: 0, calculated_at: null }));
+
+  const allEntries = [...scores.filter(s => scoredIds.has(s.porra_id) && approvedPorras.some(pf => pf.porra.id === s.porra_id)), ...unscored]
+    .sort((a, b) => {
+      if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+      // empate: orden alfabético
+      const nameA = approvedPorras.find(pf => pf.porra.id === a.porra_id)?.participant.name ?? '';
+      const nameB = approvedPorras.find(pf => pf.porra.id === b.porra_id)?.participant.name ?? '';
+      return nameA.localeCompare(nameB, 'es');
+    });
+
+  const result = allEntries.map((s, idx) => {
+    const pf = approvedPorras.find(p => p.porra.id === s.porra_id);
     return {
       position: idx + 1,
       porraId: s.porra_id,

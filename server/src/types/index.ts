@@ -18,6 +18,8 @@ export type PhaseResultType = 'advanced' | 'eliminated' | 'winner';
 
 export type LineupRole = 'titular' | 'suplente';
 
+export type PorraStatus = 'pending' | 'approved' | 'rejected';
+
 export type EventSource = 'manual' | 'besoccer_draft';
 
 // ─── Registros de base de datos (lo que devuelven los repos) ─────────────────
@@ -88,6 +90,16 @@ export interface PorraRecord {
   id: string;
   participant_id: string;
   is_locked: 0 | 1;
+  status: PorraStatus;
+  submitted_email: string | null;
+  submitted_data_json: string | null;
+}
+
+export interface PorraSubmission {
+  nombre: string;
+  email: string;
+  selections: Array<{ team_id: string; is_winner: boolean }>;
+  lineup: Array<Omit<PorraLineupRecord, 'id' | 'porra_id'>>;
 }
 
 export interface PorraSelectionRecord {

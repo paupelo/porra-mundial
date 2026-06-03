@@ -19,6 +19,7 @@ export default function AdminPorras() {
   const [tab, setTab] = useState('pending'); // 'pending' | 'all'
   const [porras, setPorras] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [players, setPlayers] = useState([]);
   const [selected, setSelected] = useState(null);
   const [checked, setChecked] = useState(new Set());
   const [editingName, setEditingName] = useState(null); // porraId
@@ -28,15 +29,17 @@ export default function AdminPorras() {
 
   const load = useCallback(async () => {
     const endpoint = tab === 'pending' ? '/admin/porras/pending' : '/admin/porras';
-    const [p, t] = await Promise.all([apiGet(endpoint), apiGet('/admin/teams')]);
+    const [p, t, pl] = await Promise.all([apiGet(endpoint), apiGet('/admin/teams'), apiGet('/admin/players')]);
     setPorras(p);
     setTeams(t);
+    setPlayers(pl);
     setChecked(new Set());
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
 
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
+  const playerMap = Object.fromEntries(players.map(p => [p.id, p]));
   const porra = selected ? porras.find(p => p.porra.id === selected) : null;
 
   function toast(m) { setMsg(m); setTimeout(() => setMsg(''), 4000); }
@@ -251,9 +254,12 @@ export default function AdminPorras() {
                 </span>
               );
             }) : (
-              <SubmittedDataPreview data={porra.porra.submitted_data_json} />
+              <SubmittedDataPreview data={porra.porra.submitted_data_json} teamMap={teamMap} />
             )}
           </div>
+
+          <div style={{ marginBottom: 8, fontWeight: 700, fontSize: '0.8rem', color: '#64748b' }}>ALINEACIÓN</div>
+          <LineupPreview lineup={porra.lineup} submittedJson={porra.porra.submitted_data_json} playerMap={playerMap} teamMap={teamMap} />
 
           {porra.porra.status === 'pending' && (
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
@@ -267,21 +273,88 @@ export default function AdminPorras() {
   );
 }
 
-function SubmittedDataPreview({ data }) {
+function SubmittedDataPreview({ data, teamMap = {} }) {
   if (!data) return <span style={{ color: '#9aa5b4', fontSize: '0.82rem' }}>Sin datos</span>;
   try {
     const parsed = JSON.parse(data);
     const sels = parsed.selections ?? [];
     if (sels.length === 0) return <span style={{ color: '#9aa5b4', fontSize: '0.82rem' }}>Sin selecciones</span>;
-    return sels.map(s => (
-      <span key={s.team_id} style={{
-        background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
-        padding: '4px 12px', fontSize: '0.82rem', fontWeight: 600, color: '#374151',
-      }}>
-        {s.team_id}{s.is_winner ? ' ⭐' : ''}
-      </span>
-    ));
+    return sels.map(s => {
+      const t = teamMap[s.team_id];
+      return (
+        <span key={s.team_id} style={{
+          background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+          padding: '4px 12px', fontSize: '0.82rem', fontWeight: 600,
+          color: t ? CAT_COLORS[t.category] : '#374151',
+        }}>
+          {t?.name ?? s.team_id}{s.is_winner ? ' ⭐' : ''}
+        </span>
+      );
+    });
   } catch {
     return <span style={{ color: '#9aa5b4', fontSize: '0.82rem' }}>Error al leer datos</span>;
   }
+}
+
+const POS_LABEL = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
+const ROL_COLOR = { titular: '#1d4ed8', suplente: '#6b7280' };
+
+function LineupPreview({ lineup, submittedJson, playerMap = {}, teamMap = {} }) {
+  // Preferimos datos estructurados; si no hay, leemos el JSON crudo
+  let entries = lineup ?? [];
+  if (entries.length === 0 && submittedJson) {
+    try {
+      const parsed = JSON.parse(submittedJson);
+      entries = (parsed.lineup ?? []).map(l => ({
+        player_id: l.player_id,
+        role: l.role,
+        position_slot: l.position_slot,
+        is_captain: l.is_captain,
+      }));
+    } catch { /* noop */ }
+  }
+
+  if (entries.length === 0) {
+    return <p style={{ color: '#9aa5b4', fontSize: '0.82rem', marginBottom: 16 }}>Sin alineación</p>;
+  }
+
+  const titulares = entries.filter(l => l.role === 'titular');
+  const suplentes = entries.filter(l => l.role === 'suplente');
+
+  const renderEntry = (l, idx) => {
+    const p = playerMap[l.player_id];
+    const t = p ? teamMap[p.team_id] : null;
+    return (
+      <span key={idx} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+        padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600,
+        color: '#374151',
+      }}>
+        <span style={{ fontSize: '0.7rem', background: ROL_COLOR[l.role], color: '#fff', borderRadius: 4, padding: '1px 5px' }}>
+          {POS_LABEL[l.position_slot] ?? l.position_slot}
+        </span>
+        {p ? p.name : l.player_id}
+        {t && <span style={{ fontSize: '0.75rem', color: CAT_COLORS[t.category] ?? '#6b7280' }}>({t.name})</span>}
+        {l.is_captain ? ' ©' : ''}
+      </span>
+    );
+  };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Titulares ({titulares.length})</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {titulares.map(renderEntry)}
+      </div>
+      {suplentes.length > 0 && (
+        <>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: 6 }}>Suplentes ({suplentes.length})</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {suplentes.map(renderEntry)}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

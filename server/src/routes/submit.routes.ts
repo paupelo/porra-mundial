@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PorrasRepo } from '../repositories/porras.repo';
+import { LineupRole, Position } from '../types';
 
 const router = Router();
 
@@ -37,6 +38,19 @@ router.post('/', (req, res) => {
   }
 
   const porra = PorrasRepo.submit(nombre.trim(), email.trim().toLowerCase(), { selections, lineup });
+
+  // Populate structured tables so the admin can see teams and players immediately
+  try {
+    if (Array.isArray(selections) && selections.length > 0) {
+      PorrasRepo.setSelections(porra.id, selections as Array<{ team_id: string; is_winner: boolean }>);
+    }
+    if (Array.isArray(lineup) && lineup.length > 0) {
+      PorrasRepo.setLineup(porra.id, (lineup as Array<{ player_id: string; role: LineupRole; position_slot: Position; is_captain: 0 | 1 }>));
+    }
+  } catch (err) {
+    // Non-fatal: raw JSON is still saved in submitted_data_json
+    console.warn('[submit] Could not expand selections/lineup into tables:', err);
+  }
 
   res.status(201).json({ porraId: porra.id, emailCount: count + 1 });
 });

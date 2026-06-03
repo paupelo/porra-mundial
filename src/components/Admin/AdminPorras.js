@@ -260,7 +260,57 @@ export default function AdminPorras() {
           </div>
 
           <div style={{ marginBottom: 8, fontWeight: 700, fontSize: '0.8rem', color: '#64748b' }}>ALINEACIÓN</div>
-          <LineupPreview lineup={porra.lineup} submittedJson={porra.porra.submitted_data_json} playerMap={playerMap} teamMap={teamMap} />
+          {(() => {
+            const rawLineup = porra.lineup?.length > 0
+              ? porra.lineup
+              : (() => { try { return JSON.parse(porra.porra.submitted_data_json || '{}').lineup || []; } catch { return []; } })();
+
+            if (!rawLineup.length) {
+              return <p style={{ color: '#9aa5b4', fontSize: '0.82rem', marginBottom: 16 }}>Sin alineación</p>;
+            }
+
+            const titulares = rawLineup.filter(l => l.role === 'titular');
+            const suplentes = rawLineup.filter(l => l.role === 'suplente');
+            const POS = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
+
+            const renderChip = (l, i) => {
+              const pl = playerMap[l.player_id];
+              const tm = pl ? teamMap[pl.team_id] : null;
+              return (
+                <span key={i} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+                  padding: '4px 10px', fontSize: '0.8rem', color: '#1e293b', fontWeight: 500,
+                }}>
+                  <span style={{
+                    background: l.role === 'titular' ? '#1d4ed8' : '#6b7280',
+                    color: '#fff', borderRadius: 4, padding: '1px 5px',
+                    fontSize: '0.68rem', fontWeight: 700, flexShrink: 0,
+                  }}>
+                    {POS[l.position_slot] || l.position_slot}
+                  </span>
+                  <span style={{ fontWeight: 600 }}>{pl ? pl.name : l.player_id.slice(0, 8) + '…'}</span>
+                  {tm && <span style={{ color: CAT_COLORS[tm.category] || '#6b7280', fontSize: '0.73rem' }}>({tm.name})</span>}
+                  {(l.is_captain === 1 || l.is_captain === true) && <span style={{ color: '#f59e0b', fontWeight: 800 }}>©</span>}
+                </span>
+              );
+            };
+
+            return (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Titulares ({titulares.length})</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {titulares.map(renderChip)}
+                </div>
+                {suplentes.length > 0 && <>
+                  <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Suplentes ({suplentes.length})</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {suplentes.map(renderChip)}
+                  </div>
+                </>}
+              </div>
+            );
+          })()}
 
           {porra.porra.status === 'pending' && (
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
@@ -297,67 +347,3 @@ function SubmittedDataPreview({ data, teamMap = {} }) {
   }
 }
 
-const POS_LABEL = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
-
-function LineupPreview({ lineup, submittedJson, playerMap = {}, teamMap = {} }) {
-  // Fuente 1: datos estructurados de porra_lineup
-  // Fuente 2 (fallback): submitted_data_json siempre disponible
-  let entries = [];
-
-  if (Array.isArray(lineup) && lineup.length > 0) {
-    entries = lineup;
-  } else if (submittedJson) {
-    try {
-      const parsed = JSON.parse(submittedJson);
-      entries = parsed.lineup ?? [];
-    } catch { /* noop */ }
-  }
-
-  if (entries.length === 0) {
-    return <p style={{ color: '#9aa5b4', fontSize: '0.82rem', marginBottom: 16 }}>Sin alineación</p>;
-  }
-
-  const titulares = entries.filter(l => l.role === 'titular');
-  const suplentes = entries.filter(l => l.role === 'suplente');
-
-  const Chip = ({ l, i }) => {
-    const player = playerMap[l.player_id];
-    const team   = player ? teamMap[player.team_id] : null;
-    const pos    = POS_LABEL[l.position_slot] ?? l.position_slot?.slice(0,3).toUpperCase();
-    const name   = player ? player.name : '—';
-    return (
-      <div key={i} style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
-        padding: '5px 10px', fontSize: '0.8rem', color: '#1e293b',
-      }}>
-        <span style={{
-          background: l.role === 'titular' ? '#1d4ed8' : '#6b7280',
-          color: '#fff', borderRadius: 4, padding: '1px 5px', fontSize: '0.68rem', fontWeight: 700,
-        }}>{pos}</span>
-        <span style={{ fontWeight: 600 }}>{name}</span>
-        {team && <span style={{ color: CAT_COLORS[team.category] ?? '#64748b', fontSize: '0.73rem' }}>({team.name})</span>}
-        {l.is_captain === 1 || l.is_captain === true ? <span style={{ color: '#f59e0b', fontWeight: 800 }}>©</span> : null}
-      </div>
-    );
-  };
-
-  return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
-        Titulares ({titulares.length})
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-        {titulares.map((l, i) => <Chip key={i} l={l} i={i} />)}
-      </div>
-      {suplentes.length > 0 && <>
-        <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
-          Suplentes ({suplentes.length})
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {suplentes.map((l, i) => <Chip key={i} l={l} i={i} />)}
-        </div>
-      </>}
-    </div>
-  );
-}

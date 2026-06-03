@@ -1071,6 +1071,18 @@
   color: #92400e;
 }
 
+.resumen-bizum-aviso {
+  display: inline-block;
+  background: #f0fdf4;
+  border: 1.5px solid #4ade80;
+  border-radius: 12px;
+  padding: 10px 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #166534;
+  margin-top: 10px;
+}
+
 .resumen-body {
   display: grid;
   grid-template-columns: 1fr 1fr;

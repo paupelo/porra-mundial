@@ -127,6 +127,9 @@ function ResumenPorra({ enviada, porra }) {
         <div className="resumen-screenshot-aviso">
           📸 Sácale un screenshot y guarda tu porra
         </div>
+        <div className="resumen-bizum-aviso">
+          💸 Envía un Bizum de <strong>25€</strong> a <strong>Txema</strong> (<strong>635 730 158</strong>) y tu porra será aprobada
+        </div>
       </div>
 
       <div className="resumen-body">

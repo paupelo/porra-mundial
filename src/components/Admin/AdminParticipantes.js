@@ -7,35 +7,41 @@ const EMPTY = { name: '', email: '' };
 const CAT_ORDER  = ['favoritos', 'sorpresas', 'petardazos', 'caca'];
 const POS_MAP    = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
 
+// Mapa estático team_id → info (categoría, nombre, bandera)
+const SEL_MAP = Object.fromEntries(SELECCIONES.map(s => [s.id, s]));
+
+// Mapa catId → info de CATEGORIAS (incluyendo alias caca = cacaDeLaVaca)
+const CAT_INFO = {
+  favoritos:    Object.values(CATEGORIAS).find(c => c.id === 'favoritos'),
+  sorpresas:    Object.values(CATEGORIAS).find(c => c.id === 'sorpresas'),
+  petardazos:   Object.values(CATEGORIAS).find(c => c.id === 'petardazos'),
+  caca:         Object.values(CATEGORIAS).find(c => c.id === 'cacaDeLaVaca'),
+};
+
 function PorraDetalle({ porraFull, players }) {
   if (!porraFull) return <p style={{ color: '#9aa5b4', fontSize: '0.82rem' }}>Sin porra registrada.</p>;
 
   const playerById = Object.fromEntries(players.map(p => [p.id, p]));
 
-  // Agrupar selecciones por categoría
-  // Usar siempre SELECCIONES de datos.js para resolver categoría y nombre
-  // (porra_selections de la API no incluye el campo category)
-  const normalize = id => {
-    const info = SELECCIONES.find(sel => sel.id === id);
-    const cat = info?.categoria === 'cacaDeLaVaca' ? 'caca' : (info?.categoria || 'caca');
-    return { info, cat };
-  };
-
-  const selsByCat = {};
-  const rawSels = porraFull.selections?.length
+  // Selecciones: usar porra_selections si existen, si no leer del JSON crudo
+  const rawSels = porraFull.selections?.length > 0
     ? porraFull.selections
     : (() => {
         try { return JSON.parse(porraFull.porra?.submitted_data_json || '{}').selections || []; }
         catch { return []; }
       })();
 
+  // Agrupar por categoría usando SEL_MAP (estático, no puede fallar)
+  const bycat = { favoritos: [], sorpresas: [], petardazos: [], caca: [] };
   for (const s of rawSels) {
-    const { info, cat } = normalize(s.team_id);
-    if (!selsByCat[cat]) selsByCat[cat] = [];
-    selsByCat[cat].push({ team_id: s.team_id, team_name: info?.nombre || s.team_name || s.team_id, is_winner: s.is_winner });
+    const info = SEL_MAP[s.team_id];
+    const cat  = info?.categoria === 'cacaDeLaVaca' ? 'caca' : (info?.categoria || 'caca');
+    if (bycat[cat]) bycat[cat].push({ ...s, selInfo: info });
   }
 
-  // Construir props para CampoFormacion
+  const ganador = rawSels.find(s => s.is_winner === 1 || s.is_winner === true);
+
+  // Alineación para CampoFormacion
   const lineup = porraFull.lineup || [];
   const titular = lineup
     .filter(l => l.role === 'titular')
@@ -50,39 +56,34 @@ function PorraDetalle({ porraFull, players }) {
       return { id: l.player_id, nombre: p?.name || '—', posicion: POS_MAP[l.position_slot] || 'MED', seleccionId: p?.team_id || '', esCopitan: false };
     });
 
-  const ganador = rawSels.find(s => s.is_winner);
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
       {/* Selecciones */}
       <div>
         {ganador && (
           <div style={{ background: '#fef9c3', border: '1px solid #fbbf24', borderRadius: 8, padding: '6px 14px', marginBottom: 12, fontSize: '0.82rem', fontWeight: 700, color: '#92400e' }}>
-            ⭐ Ganador: {ganador.team_name || SELECCIONES.find(s => s.id === ganador.team_id)?.nombre || ganador.team_id}
+            ⭐ Ganador: {SEL_MAP[ganador.team_id]?.nombre || ganador.team_id}
           </div>
         )}
         {CAT_ORDER.map(catId => {
-          const items = selsByCat[catId];
-          if (!items?.length) return null;
-          const cat = Object.values(CATEGORIAS).find(c => c.id === catId || c.id === 'cacaDeLaVaca' && catId === 'caca');
+          const items = bycat[catId];
+          if (!items.length) return null;
+          const cat = CAT_INFO[catId];
           return (
             <div key={catId} style={{ marginBottom: 10 }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 700, color: cat?.color || '#6b7c93', marginBottom: 4 }}>
                 {cat?.emoji} {cat?.nombre}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                {items.map(s => {
-                  const info = SELECCIONES.find(sel => sel.id === s.team_id);
-                  return (
-                    <span key={s.team_id} style={{
-                      background: s.is_winner ? '#fef9c3' : '#f8fafc',
-                      border: `1px solid ${s.is_winner ? '#fbbf24' : '#e2e8f0'}`,
-                      borderRadius: 6, padding: '2px 8px', fontSize: '0.78rem', fontWeight: 600,
-                    }}>
-                      {info?.bandera} {s.team_name || info?.nombre || s.team_id}
-                    </span>
-                  );
-                })}
+                {items.map(s => (
+                  <span key={s.team_id} style={{
+                    background: (s.is_winner === 1 || s.is_winner === true) ? '#fef9c3' : '#f8fafc',
+                    border: `1px solid ${(s.is_winner === 1 || s.is_winner === true) ? '#fbbf24' : '#e2e8f0'}`,
+                    borderRadius: 6, padding: '2px 8px', fontSize: '0.78rem', fontWeight: 600,
+                  }}>
+                    {s.selInfo?.bandera} {s.selInfo?.nombre || s.team_id}
+                  </span>
+                ))}
               </div>
             </div>
           );

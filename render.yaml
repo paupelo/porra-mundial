@@ -2,35 +2,16 @@ services:
   - type: web
     name: porra-mundial
     runtime: node
-    region: frankfurt    # el más cercano a España
+    region: frankfurt
     plan: free
-
-    # Render ejecuta estos comandos desde la raíz del repositorio
-    buildCommand: |
-      npm ci &&
-      npm run build &&
-      cd server &&
-      npm ci &&
-      npm run build
+    buildCommand: "CI=false npm ci && CI=false npm run build && cd server && npm ci && npm run build"
     startCommand: node server/dist/index.js
-
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "20"
       - key: JWT_SECRET
-        generateValue: true      # Render genera un valor aleatorio en el primer deploy
-      - key: DB_PATH
-        value: /data/porra.db    # disco persistente montado en /data
+        generateValue: true
       - key: BESOCCER_ENABLED
-        value: false
-      # SMTP (opcional — añadir manualmente en el dashboard de Render si se necesita)
-      # - key: SMTP_HOST
-      # - key: SMTP_PORT
-      # - key: SMTP_USER
-      # - key: SMTP_PASS
-      # - key: SMTP_FROM
-
-    disk:
-      name: porra-db
-      mountPath: /data
-      sizeGB: 1
+        value: "false"

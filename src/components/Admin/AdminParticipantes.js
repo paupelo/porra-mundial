@@ -4,7 +4,7 @@ import CampoFormacion from '../ArmaTuPorra/CampoFormacion';
 import { SELECCIONES, CATEGORIAS } from '../ArmaTuPorra/datos';
 
 const EMPTY = { name: '', email: '' };
-const CAT_ORDER  = ['favoritos', 'sorpresas', 'petardazos', 'cacaDeLaVaca', 'caca'];
+const CAT_ORDER  = ['favoritos', 'sorpresas', 'petardazos', 'caca'];
 const POS_MAP    = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
 
 function PorraDetalle({ porraFull, players }) {
@@ -13,25 +13,26 @@ function PorraDetalle({ porraFull, players }) {
   const playerById = Object.fromEntries(players.map(p => [p.id, p]));
 
   // Agrupar selecciones por categoría
-  const selsByCat = {};
-  for (const s of (porraFull.selections || [])) {
-    const cat = s.category === 'cacaDeLaVaca' ? 'caca' : (s.category || 'caca');
-    if (!selsByCat[cat]) selsByCat[cat] = [];
-    selsByCat[cat].push(s);
-  }
+  // Usar siempre SELECCIONES de datos.js para resolver categoría y nombre
+  // (porra_selections de la API no incluye el campo category)
+  const normalize = id => {
+    const info = SELECCIONES.find(sel => sel.id === id);
+    const cat = info?.categoria === 'cacaDeLaVaca' ? 'caca' : (info?.categoria || 'caca');
+    return { info, cat };
+  };
 
-  // Fallback: leer de submitted_data_json si no hay selecciones estructuradas
-  let rawSels = porraFull.selections || [];
-  if (rawSels.length === 0 && porraFull.porra?.submitted_data_json) {
-    try {
-      rawSels = JSON.parse(porraFull.porra.submitted_data_json).selections || [];
-      for (const s of rawSels) {
-        const teamInfo = SELECCIONES.find(sel => sel.id === s.team_id);
-        const cat = teamInfo?.categoria === 'cacaDeLaVaca' ? 'caca' : (teamInfo?.categoria || 'caca');
-        if (!selsByCat[cat]) selsByCat[cat] = [];
-        selsByCat[cat].push({ team_id: s.team_id, team_name: teamInfo?.nombre || s.team_id, is_winner: s.is_winner, category: cat });
-      }
-    } catch { /* noop */ }
+  const selsByCat = {};
+  const rawSels = porraFull.selections?.length
+    ? porraFull.selections
+    : (() => {
+        try { return JSON.parse(porraFull.porra?.submitted_data_json || '{}').selections || []; }
+        catch { return []; }
+      })();
+
+  for (const s of rawSels) {
+    const { info, cat } = normalize(s.team_id);
+    if (!selsByCat[cat]) selsByCat[cat] = [];
+    selsByCat[cat].push({ team_id: s.team_id, team_name: info?.nombre || s.team_name || s.team_id, is_winner: s.is_winner });
   }
 
   // Construir props para CampoFormacion
@@ -63,7 +64,7 @@ function PorraDetalle({ porraFull, players }) {
         {CAT_ORDER.map(catId => {
           const items = selsByCat[catId];
           if (!items?.length) return null;
-          const cat = Object.values(CATEGORIAS).find(c => c.id === catId || (catId === 'caca' && c.id === 'cacaDeLaVaca'));
+          const cat = Object.values(CATEGORIAS).find(c => c.id === catId || c.id === 'cacaDeLaVaca' && catId === 'caca');
           return (
             <div key={catId} style={{ marginBottom: 10 }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 700, color: cat?.color || '#6b7c93', marginBottom: 4 }}>

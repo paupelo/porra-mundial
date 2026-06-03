@@ -5,6 +5,9 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { runMigrations } from './db/migrate';
 import { runSeedIfEmpty } from './scripts/seed';
+import bcrypt from 'bcryptjs';
+import { v4 as uuid } from 'uuid';
+import { getDb } from './db/database';
 import { errorHandler } from './middleware/errors';
 import authRoutes from './routes/auth.routes';
 import publicRoutes from './routes/public.routes';
@@ -16,6 +19,20 @@ dotenv.config();
 
 runMigrations();
 runSeedIfEmpty();
+
+// Crea el admin desde env vars si no existe ninguno (útil en Render sin disco)
+const adminEmail = process.env.ADMIN_EMAIL;
+const adminPassword = process.env.ADMIN_PASSWORD;
+if (adminEmail && adminPassword) {
+  const db = getDb();
+  const existing = db.prepare('SELECT id FROM admin_users WHERE email=?').get(adminEmail);
+  if (!existing) {
+    db.prepare('INSERT INTO admin_users(id,email,password_hash) VALUES(?,?,?)').run(
+      uuid(), adminEmail, bcrypt.hashSync(adminPassword, 12)
+    );
+    console.log(`✓ Admin creado: ${adminEmail}`);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;

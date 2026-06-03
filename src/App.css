@@ -132,6 +132,7 @@ body {
 }
 
 .btn-principal {
+  display: inline-block;
   background-color: #003DA5;
   color: #ffffff;
   border: none;
@@ -143,6 +144,7 @@ body {
   letter-spacing: 0.3px;
   transition: all 0.25s ease;
   box-shadow: 0 4px 20px rgba(0, 61, 165, 0.25);
+  text-decoration: none;
 }
 
 .btn-principal:hover {

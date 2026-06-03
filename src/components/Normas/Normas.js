@@ -138,13 +138,49 @@ export default function Normas() {
 
       <div className="normas-content">
 
-        {/* ===================== PRECIO ===================== */}
-        <div className="nota-box nota-yellow" style={{ marginBottom: 32 }}>
-          <span className="nota-icon">💶</span>
-          <p className="nota-text">
-            <strong>Inscripción: 25 €</strong> por porra. El bote total se reparte entre los tres primeros clasificados:
-            <br /><strong>🥇 1.º → 60 %</strong> · <strong>🥈 2.º → 30 %</strong> · <strong>🥉 3.º → 10 %</strong>
-          </p>
+        {/* ===================== PRECIO Y PREMIOS ===================== */}
+        <div style={{
+          background: 'linear-gradient(135deg, #003DA5 0%, #0055d4 100%)',
+          borderRadius: 16,
+          padding: '18px 20px',
+          marginBottom: 32,
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 20,
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: '1.2rem' }}>💶</span>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 900 }}>Inscripción: 25 €</div>
+              <div style={{ fontSize: '0.72rem', opacity: 0.75 }}>por porra</div>
+            </div>
+          </div>
+          <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { medal: '🥇', pct: '60%', label: '1.er clasificado' },
+              { medal: '🥈', pct: '30%', label: '2.º clasificado'  },
+              { medal: '🥉', pct: '10%', label: '3.er clasificado' },
+            ].map(({ medal, pct, label }) => (
+              <div key={label} style={{
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.22)',
+                borderRadius: 10,
+                padding: '6px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+              }}>
+                <span style={{ fontSize: '1.1rem' }}>{medal}</span>
+                <div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, lineHeight: 1.1 }}>{pct}</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* ===================== SECCIÓN 1: SELECCIONES ===================== */}

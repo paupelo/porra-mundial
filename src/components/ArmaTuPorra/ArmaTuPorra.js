@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { porraVacia } from './datos';
+import { porraVacia, SELECCIONES, CATEGORIAS } from './datos';
 import { validarAlineacion } from './PasoAlineacion';
 import PasoSelecciones from './PasoSelecciones';
 import PasoAlineacion from './PasoAlineacion';
 import PasoRevision from './PasoRevision';
+import CampoFormacion from './CampoFormacion';
 import './ArmaTuPorra.css';
 
 const PASOS = ['Elige equipos', 'Arma tu 11', 'Revisión'];
@@ -44,16 +45,7 @@ function ArmaTuPorra() {
     (paso === 1 && puedeAvanzarPaso2(porra));
 
   if (enviada) {
-    return (
-      <div className="arma-porra-enviada">
-        <div className="enviada-contenido">
-          <div className="enviada-icono">🏆</div>
-          <h2>¡Porra enviada!</h2>
-          <p><strong>{enviada.nombre}</strong>, tu porra ha sido registrada y está pendiente de aprobación.</p>
-          <p>Cuando el administrador la apruebe aparecerás en la clasificación. Te avisaremos si hay algún problema.</p>
-        </div>
-      </div>
-    );
+    return <ResumenPorra enviada={enviada} porra={porra} />;
   }
 
   return (
@@ -116,3 +108,69 @@ function ArmaTuPorra() {
 }
 
 export default ArmaTuPorra;
+
+const CAT_ORDER = ['favoritos', 'sorpresas', 'petardazos', 'cacaDeLaVaca'];
+
+function ResumenPorra({ enviada, porra }) {
+  const catInfo = id => Object.values(CATEGORIAS).find(c => c.id === id);
+  const selInfo = id => SELECCIONES.find(s => s.id === id);
+
+  return (
+    <div className="resumen-enviada">
+      {/* Cabecera */}
+      <div className="resumen-header">
+        <div className="resumen-check">✓</div>
+        <h2>¡Porra enviada!</h2>
+        <p className="resumen-sub">
+          <strong>{enviada.nombre}</strong> — pendiente de aprobación por el admin.
+        </p>
+        <div className="resumen-screenshot-aviso">
+          📸 Sácale un screenshot y guarda tu porra
+        </div>
+      </div>
+
+      <div className="resumen-body">
+        {/* Selecciones */}
+        <div className="resumen-bloque">
+          <h3>Mis equipos</h3>
+          {CAT_ORDER.map(catId => {
+            const cat = catInfo(catId);
+            const equipos = porra[catId] ?? [];
+            if (!equipos.length) return null;
+            return (
+              <div key={catId} className="resumen-cat-fila" style={{ '--cat-color': cat?.color }}>
+                <span className="resumen-cat-label">{cat?.emoji} {cat?.nombre}</span>
+                <div className="resumen-equipos-lista">
+                  {equipos.map(id => {
+                    const s = selInfo(id);
+                    return (
+                      <span
+                        key={id}
+                        className={`resumen-equipo-chip${porra.equipoGanador === id ? ' ganador' : ''}`}
+                      >
+                        {s?.bandera} {s?.nombre}{porra.equipoGanador === id ? ' ⭐' : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Campo */}
+        <div className="resumen-bloque">
+          <h3>Mi 11</h3>
+          <div className="resumen-campo">
+            <CampoFormacion titular={porra.titular} suplentes={porra.suplentes} />
+          </div>
+          {porra.titular.find(j => j.esCopitan) && (
+            <p className="resumen-capitan">
+              Capitán: <strong>{porra.titular.find(j => j.esCopitan).nombre}</strong> ©
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

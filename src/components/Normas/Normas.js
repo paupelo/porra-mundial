@@ -138,6 +138,14 @@ export default function Normas() {
 
       <div className="normas-content">
 
+        {/* ===================== PRECIO ===================== */}
+        <div className="nota-box nota-yellow" style={{ marginBottom: 32 }}>
+          <span className="nota-icon">💶</span>
+          <p className="nota-text">
+            <strong>Inscripción: 25 €</strong> por porra. El bote total se reparte entre los primeros clasificados según las normas del grupo.
+          </p>
+        </div>
+
         {/* ===================== SECCIÓN 1: SELECCIONES ===================== */}
         <div className="normas-section">
           <div className="section-header">
@@ -279,7 +287,7 @@ export default function Normas() {
                 <li><span><strong>Capitán:</strong> el jugador elegido como capitán puntúa <strong>el doble</strong></span></li>
                 <li><span>Máximo <strong>2 jugadores de la misma selección</strong> en tu once (titulares + suplentes en conjunto)</span></li>
                 <li><span><strong>3 suplentes</strong> (1 Defensa, 1 Medio, 1 Delantero). Máximo <strong>1 Favorito</strong> entre los suplentes</span></li>
-                <li><span>Suplentes puntúan la <strong>mitad</strong> mientras su línea esté completa. Si un titular de esa línea es expulsado o se lesiona, el suplente entra y suma <strong>puntos completos</strong>.</span></li>
+                <li><span>Suplentes puntúan la <strong>mitad</strong> mientras su línea esté completa. Si un titular de esa línea es eliminado, el suplente entra y suma <strong>puntos completos</strong>.</span></li>
               </ul>
             </div>
           </div>

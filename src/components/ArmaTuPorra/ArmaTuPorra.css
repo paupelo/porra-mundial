@@ -1019,3 +1019,132 @@
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   }
 }
+
+/* ── RESUMEN POST-ENVÍO ──────────────────────────────────────────────────── */
+
+.resumen-enviada {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+
+.resumen-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.resumen-check {
+  width: 64px;
+  height: 64px;
+  background: #003DA5;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 2rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.resumen-header h2 {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #003DA5;
+  margin-bottom: 8px;
+}
+
+.resumen-sub {
+  font-size: 1rem;
+  color: #6b7c93;
+  margin-bottom: 16px;
+}
+
+.resumen-screenshot-aviso {
+  display: inline-block;
+  background: #fef9c3;
+  border: 1.5px solid #fbbf24;
+  border-radius: 12px;
+  padding: 10px 24px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.resumen-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.resumen-bloque {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.resumen-bloque h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #003DA5;
+  margin-bottom: 16px;
+}
+
+.resumen-cat-fila {
+  margin-bottom: 12px;
+}
+
+.resumen-cat-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--cat-color, #6b7c93);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.resumen-equipos-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.resumen-equipo-chip {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.resumen-equipo-chip.ganador {
+  border-color: #fbbf24;
+  background: #fef9c3;
+  color: #92400e;
+}
+
+.resumen-campo {
+  margin: 0 auto;
+  max-width: 300px;
+}
+
+.resumen-capitan {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #6b7c93;
+  margin-top: 10px;
+}
+
+@media (max-width: 680px) {
+  .resumen-body {
+    grid-template-columns: 1fr;
+  }
+  .resumen-header h2 {
+    font-size: 1.5rem;
+  }
+}

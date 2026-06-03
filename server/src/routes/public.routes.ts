@@ -56,6 +56,35 @@ router.get('/clasificacion/:porraId', (req, res) => {
   });
 });
 
+/** GET /api/porras/:porraId — selecciones + alineación pública de una porra aprobada */
+router.get('/porras/:porraId', (req, res) => {
+  const full = PorrasRepo.findAllFull().find(p => p.porra.id === req.params.porraId);
+  if (!full) { res.status(404).json({ error: 'Porra no encontrada o no aprobada' }); return; }
+
+  const teams   = TeamsRepo.findAll();
+  const players = PlayersRepo.findAll();
+  const teamById   = new Map(teams.map(t => [t.id, t]));
+  const playerById = new Map(players.map(p => [p.id, p]));
+
+  res.json({
+    participantName: full.participant.name,
+    selections: full.selections.map(s => {
+      const t = teamById.get(s.team_id);
+      return { team_id: s.team_id, team_name: t?.name ?? s.team_id, category: t?.category ?? '', is_winner: s.is_winner };
+    }),
+    lineup: full.lineup.map(l => {
+      const p = playerById.get(l.player_id);
+      const t = p ? teamById.get(p.team_id) : null;
+      return {
+        player_id: l.player_id, player_name: p?.name ?? l.player_id,
+        team_id: p?.team_id ?? '', team_name: t?.name ?? '',
+        category: t?.category ?? '',
+        role: l.role, position: l.position_slot, is_captain: l.is_captain,
+      };
+    }),
+  });
+});
+
 /** GET /api/teams */
 router.get('/teams', (_req, res) => res.json(TeamsRepo.findAll()));
 

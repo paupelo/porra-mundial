@@ -183,6 +183,20 @@ export default function Normas() {
           </div>
         </div>
 
+        {/* ===================== PLAZO ===================== */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: '#fff7ed', border: '1.5px solid #fb923c',
+          borderRadius: 12, padding: '12px 20px', marginBottom: 32,
+        }}>
+          <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>⏰</span>
+          <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#9a3412' }}>
+            Plazo límite para enviar las porras:{' '}
+            <span style={{ fontWeight: 900 }}>Jueves 11 de junio a las 19.00h</span>
+            {' '}(2h antes del saque inicial del México - Sudáfrica)
+          </p>
+        </div>
+
         {/* ===================== SECCIÓN 1: SELECCIONES ===================== */}
         <div className="normas-section">
           <div className="section-header">

@@ -1,86 +1,122 @@
 import React, { useState, useEffect } from 'react';
-import { apiGet, apiPost, apiPut, apiDelete } from '../../hooks/useApi';
+import { apiGet } from '../../hooks/useApi';
 
-const CATS = ['favoritos', 'sorpresas', 'petardazos', 'caca'];
-const EMPTY = { name: '', country_code: '', category: 'favoritos' };
+const CAT_LABEL  = { favoritos: 'Favoritos 🔴', sorpresas: 'Sorpresas 🔵', petardazos: 'Petardazos 🟢', caca: 'Caca de la Vaca ⚫' };
+const CAT_COLOR  = { favoritos: '#b91c1c', sorpresas: '#1d4ed8', petardazos: '#15803d', caca: '#4b5563' };
+const CAT_ORDER  = ['favoritos', 'sorpresas', 'petardazos', 'caca'];
 
 export default function AdminSelecciones() {
-  const [teams, setTeams] = useState([]);
-  const [form, setForm] = useState(EMPTY);
-  const [editing, setEditing] = useState(null);
-  const [msg, setMsg] = useState('');
+  const [porras,  setPorras]  = useState([]);
+  const [teams,   setTeams]   = useState([]);
+  const [scores,  setScores]  = useState({}); // porraId → breakdown
+  const [loading, setLoading] = useState(true);
 
-  const load = () => apiGet('/admin/teams').then(setTeams).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    Promise.all([apiGet('/admin/porras'), apiGet('/admin/teams')])
+      .then(([p, t]) => {
+        setPorras(p.filter(pf => pf.porra.status === 'approved'));
+        setTeams(t);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  async function save() {
-    try {
-      if (editing) {
-        await apiPut(`/admin/teams/${editing}`, form);
-      } else {
-        await apiPost('/admin/teams', form);
-      }
-      setForm(EMPTY); setEditing(null); setMsg('✓ Guardado'); load();
-    } catch (e) { setMsg('Error: ' + e.message); }
+  if (loading) return <div className="clas-loading">Cargando…</div>;
+
+  const approved = porras;
+  if (approved.length === 0) {
+    return (
+      <div>
+        <h2>Selecciones</h2>
+        <div className="admin-card" style={{ textAlign: 'center', padding: '40px 24px', color: '#9aa5b4' }}>
+          <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>📋</p>
+          <p>Aquí aparecerán las selecciones cuando haya porras aprobadas.</p>
+        </div>
+      </div>
+    );
   }
 
-  async function del(id) {
-    if (!window.confirm('¿Eliminar equipo?')) return;
-    await apiDelete(`/admin/teams/${id}`);
-    load();
+  const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
+
+  // Agregar picks: team_id → { team, participants: [{name, isWinner}], pts }
+  const teamPicks = {};
+  for (const pf of approved) {
+    for (const s of pf.selections) {
+      if (!teamPicks[s.team_id]) teamPicks[s.team_id] = { team: teamMap[s.team_id], pickers: [] };
+      teamPicks[s.team_id].pickers.push({ name: pf.participant.name, isWinner: !!s.is_winner });
+    }
   }
 
-  function startEdit(t) {
-    setEditing(t.id);
-    setForm({ name: t.name, country_code: t.country_code ?? '', category: t.category });
+  // Agrupar por categoría
+  const byCat = {};
+  for (const [tid, data] of Object.entries(teamPicks)) {
+    const cat = data.team?.category || 'caca';
+    if (!byCat[cat]) byCat[cat] = [];
+    byCat[cat].push({ tid, ...data });
+  }
+  for (const cat of Object.keys(byCat)) {
+    byCat[cat].sort((a, b) => (b.pickers.length - a.pickers.length) || (a.team?.name || '').localeCompare(b.team?.name || ''));
   }
 
   return (
     <div>
-      <h2>Selecciones</h2>
-      {msg && <p style={{ color: '#15803d', marginBottom: 12 }}>{msg}</p>}
+      <h2>Selecciones elegidas</h2>
+      <p style={{ color: '#6b7c93', fontSize: '0.85rem', marginBottom: 20 }}>
+        Equipos seleccionados en {approved.length} porra{approved.length !== 1 ? 's' : ''} aprobada{approved.length !== 1 ? 's' : ''}.
+        Los puntos se actualizarán al recalcular.
+      </p>
 
-      <div className="admin-card">
-        <div className="inline-form">
-          <div className="form-group">
-            <label>Nombre</label>
-            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="España" />
+      {CAT_ORDER.map(cat => {
+        const items = byCat[cat];
+        if (!items?.length) return null;
+        return (
+          <div key={cat} style={{ marginBottom: 28 }}>
+            <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: CAT_COLOR[cat], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {CAT_LABEL[cat]} — {items.length} equipo{items.length !== 1 ? 's' : ''}
+            </h3>
+            <div className="admin-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Equipo</th>
+                    <th>Elegido por</th>
+                    <th>¿Campeón?</th>
+                    <th style={{ textAlign: 'right' }}>Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map(({ tid, team, pickers }) => {
+                    const winners = pickers.filter(p => p.isWinner);
+                    return (
+                      <tr key={tid}>
+                        <td style={{ fontWeight: 600 }}>{team?.name ?? tid}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {pickers.map(pk => (
+                              <span key={pk.name} style={{
+                                background: '#f1f5f9', borderRadius: 6, padding: '1px 8px',
+                                fontSize: '0.75rem', fontWeight: 600, color: '#374151',
+                              }}>{pk.name}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          {winners.length > 0
+                            ? <span style={{ color: '#d97706', fontWeight: 700, fontSize: '0.82rem' }}>
+                                ⭐ {winners.map(w => w.name).join(', ')}
+                              </span>
+                            : <span style={{ color: '#9aa5b4', fontSize: '0.82rem' }}>—</span>
+                          }
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#003DA5' }}>0</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Código país</label>
-            <input value={form.country_code} onChange={e => setForm(f => ({ ...f, country_code: e.target.value }))} placeholder="ES" style={{ width: 80 }} />
-          </div>
-          <div className="form-group">
-            <label>Categoría</label>
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-              {CATS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <button className="btn btn-primary" onClick={save}>{editing ? 'Actualizar' : 'Añadir'}</button>
-          {editing && <button className="btn" onClick={() => { setEditing(null); setForm(EMPTY); }}>Cancelar</button>}
-        </div>
-      </div>
-
-      <div className="admin-card">
-        <table className="admin-table">
-          <thead><tr><th>Nombre</th><th>País</th><th>Categoría</th><th></th></tr></thead>
-          <tbody>
-            {teams.map(t => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
-                <td>{t.country_code ?? '—'}</td>
-                <td>{t.category}</td>
-                <td>
-                  <div className="btn-group">
-                    <button className="btn btn-sm" onClick={() => startEdit(t)}>✏️</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => del(t.id)}>🗑</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        );
+      })}
     </div>
   );
 }

@@ -25,7 +25,10 @@ export function useApi(path, deps = []) {
 }
 
 export async function apiGet(path) {
-  const r = await fetch(`${BASE}${path}`);
+  const token = getToken();
+  const r = await fetch(`${BASE}${path}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }

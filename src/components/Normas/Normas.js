@@ -142,7 +142,8 @@ export default function Normas() {
         <div className="nota-box nota-yellow" style={{ marginBottom: 32 }}>
           <span className="nota-icon">💶</span>
           <p className="nota-text">
-            <strong>Inscripción: 25 €</strong> por porra. El bote total se reparte entre los primeros clasificados según las normas del grupo.
+            <strong>Inscripción: 25 €</strong> por porra. El bote total se reparte entre los tres primeros clasificados:
+            <br /><strong>🥇 1.º → 60 %</strong> · <strong>🥈 2.º → 30 %</strong> · <strong>🥉 3.º → 10 %</strong>
           </p>
         </div>
 

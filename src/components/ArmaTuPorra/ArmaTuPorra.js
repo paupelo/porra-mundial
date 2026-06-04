@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { porraVacia, SELECCIONES, CATEGORIAS } from './datos';
 import { validarAlineacion } from './PasoAlineacion';
 import PasoSelecciones from './PasoSelecciones';
@@ -8,6 +8,23 @@ import CampoFormacion from './CampoFormacion';
 import './ArmaTuPorra.css';
 
 const PASOS = ['Elige equipos', 'Arma tu 11', 'Revisión'];
+const SESSION_KEY = 'arma_tu_porra_draft';
+
+function loadDraft() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(paso, porra, enviada) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ paso, porra, enviada }));
+  } catch {}
+}
 
 function puedeAvanzarPaso1(porra) {
   return (
@@ -24,9 +41,14 @@ function puedeAvanzarPaso2(porra) {
 }
 
 function ArmaTuPorra() {
-  const [paso, setPaso] = useState(0);
-  const [porra, setPorra] = useState(porraVacia());
-  const [enviada, setEnviada] = useState(null); // null | { nombre, email, porraId }
+  const draft = loadDraft();
+  const [paso, setPaso] = useState(draft?.paso ?? 0);
+  const [porra, setPorra] = useState(draft?.porra ?? porraVacia());
+  const [enviada, setEnviada] = useState(draft?.enviada ?? null); // null | { nombre, email, porraId }
+
+  useEffect(() => {
+    saveDraft(paso, porra, enviada);
+  }, [paso, porra, enviada]);
 
   function scrollTop() {
     window.scrollTo(0, 0);
@@ -44,6 +66,7 @@ function ArmaTuPorra() {
 
   function handleEnviar(datos) {
     setEnviada(datos);
+    sessionStorage.removeItem(SESSION_KEY);
   }
 
   const puedeAvanzar =

@@ -28,12 +28,18 @@ function ArmaTuPorra() {
   const [porra, setPorra] = useState(porraVacia());
   const [enviada, setEnviada] = useState(null); // null | { nombre, email, porraId }
 
+  function scrollTop() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
   function avanzar() {
-    if (paso < PASOS.length - 1) setPaso(p => p + 1);
+    if (paso < PASOS.length - 1) { setPaso(p => p + 1); scrollTop(); }
   }
 
   function retroceder() {
-    if (paso > 0) setPaso(p => p - 1);
+    if (paso > 0) { setPaso(p => p - 1); scrollTop(); }
   }
 
   function handleEnviar(datos) {

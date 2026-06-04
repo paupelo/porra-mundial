@@ -89,13 +89,13 @@ function SlotJugador({ slot, jugador, onRemove }) {
         : <circle cx={slot.cx} cy={slot.cy} r="19" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
       }
       {/* Bandera */}
-      <text
-        x={slot.cx} y={slot.cy - 3}
-        textAnchor="middle"
-        fontSize="12"
-      >
-        {info?.bandera}
-      </text>
+      {info?.codigo && (
+        <image
+          href={`https://flagcdn.com/w20/${info.codigo}.png`}
+          x={slot.cx - 10} y={slot.cy - 16}
+          width="20" height="15"
+        />
+      )}
       {/* Apellido */}
       <text
         x={slot.cx} y={slot.cy + 13}
@@ -288,7 +288,9 @@ function CampoFormacion({ titular, suplentes, onRemoveTitular, onRemoveSuplente 
               >
                 {jug ? (
                   <>
-                    <span className="cf-sup-bandera">{info?.bandera}</span>
+                    <span className="cf-sup-bandera">
+                      {info?.codigo && <img src={`https://flagcdn.com/w20/${info.codigo}.png`} width="20" height="15" alt={info.nombre} style={{ verticalAlign: 'middle' }} />}
+                    </span>
                     <span className="cf-sup-nombre">{apellido}</span>
                     <span className="cf-sup-pos">{jug.posicion}</span>
                     {onRemoveSuplente && <span className="cf-sup-remove">✕</span>}

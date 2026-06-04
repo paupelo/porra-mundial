@@ -34,6 +34,9 @@ export function validarAlineacion(porra) {
   if (catCount('sorpresas') < 3)
     errores.push('Necesitas al menos 3 titulares de Sorpresas.');
 
+  if (porra.suplentes.length < 3)
+    errores.push('Debes elegir los 3 suplentes (DEF, MED y DEL).');
+
   const supFavoritos = porra.suplentes.filter(
     j => getCategoriaDeSeleccion(j.seleccionId) === 'favoritos'
   ).length;

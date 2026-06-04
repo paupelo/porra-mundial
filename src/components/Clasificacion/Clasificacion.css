@@ -137,9 +137,20 @@
   padding: 2px 6px; border-radius: 6px; margin-left: 6px;
 }
 
+/* ── Layout 2 columnas: selecciones (izq) + campo (der) ── */
+.porra-cols {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 32px;
+  align-items: start;
+}
+.porra-cols .detalle-section { margin-bottom: 0; }
+
 @media (max-width: 768px) {
   .clas-hero { padding: 32px 20px 28px; }
   .clas-hero h1 { font-size: 2rem; }
   .clas-content { padding: 24px 16px 0; }
   .sel-grid { grid-template-columns: 1fr 1fr; }
+  .porra-cols { display: block; }
+  .porra-cols .detalle-section { margin-bottom: 40px; }
 }

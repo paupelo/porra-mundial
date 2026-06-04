@@ -179,7 +179,7 @@ export default function DetalleParticipante({ porraId, onBack }) {
 
       {/* ── Panel "Mi Porra" ── */}
       {(tab === 'porra' || !hasScore) && porraData && (
-        <div>
+        <div className="porra-cols">
           {/* Selecciones por categoría */}
           <div className="detalle-section">
             <h3>Selecciones</h3>

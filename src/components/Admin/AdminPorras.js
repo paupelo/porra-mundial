@@ -16,7 +16,7 @@ const STATUS_STYLE = {
 };
 
 export default function AdminPorras() {
-  const [tab, setTab] = useState('pending'); // 'pending' | 'all'
+  const [tab, setTab] = useState('all'); // 'pending' | 'all'
   const [porras, setPorras] = useState([]);
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
@@ -25,16 +25,21 @@ export default function AdminPorras() {
   const [editingName, setEditingName] = useState(null); // porraId
   const [nameInput, setNameInput] = useState('');
   const [msg, setMsg] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    const endpoint = tab === 'pending' ? '/admin/porras/pending' : '/admin/porras';
-    const [p, t] = await Promise.all([apiGet(endpoint), apiGet('/admin/teams')]);
-    setPorras(p);
-    setTeams(t);
-    setChecked(new Set());
-    // Players se carga aparte para no bloquear si hay un error
-    apiGet('/admin/players').then(setPlayers).catch(() => {});
+    setLoadError('');
+    try {
+      const endpoint = tab === 'pending' ? '/admin/porras/pending' : '/admin/porras';
+      const [p, t] = await Promise.all([apiGet(endpoint), apiGet('/admin/teams')]);
+      setPorras(p);
+      setTeams(t);
+      setChecked(new Set());
+      apiGet('/admin/players').then(setPlayers).catch(() => {});
+    } catch (e) {
+      setLoadError('Error cargando porras: ' + e.message);
+    }
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
@@ -102,6 +107,7 @@ export default function AdminPorras() {
     <div>
       <h2>Porras</h2>
       {msg && <p style={{ color: '#15803d', marginBottom: 12, fontWeight: 600 }}>{msg}</p>}
+      {loadError && <p style={{ color: '#b91c1c', marginBottom: 12, fontWeight: 600 }}>{loadError}</p>}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>

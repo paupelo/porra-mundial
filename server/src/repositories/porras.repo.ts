@@ -93,8 +93,8 @@ export const PorrasRepo = {
 
   async create(participantId: string): Promise<PorraRecord> {
     const id = uuid();
-    await getDb().query("INSERT INTO porras(id,participant_id,status) VALUES($1,$2,'approved')", [id, participantId]);
-    return { id, participant_id: participantId, is_locked: 0, status: 'approved', submitted_email: null, submitted_data_json: null };
+    await getDb().query("INSERT INTO porras(id,participant_id,status) VALUES($1,$2,'pending')", [id, participantId]);
+    return { id, participant_id: participantId, is_locked: 0, status: 'pending', submitted_email: null, submitted_data_json: null };
   },
 
   async setMvp(porraId: string, playerId: string | null): Promise<void> {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SELECCIONES, CATEGORIAS } from './datos';
 import CampoFormacion from './CampoFormacion';
+import BanderaImg from './BanderaImg';
 
 // Posición de la API → código interno del wizard
 const POS_API = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
@@ -205,7 +206,7 @@ function PasoAlineacion({ porra, setPorra }) {
                 onClick={() => setSeleccionActiva(equipo.id)}
                 type="button"
               >
-                <span>{equipo.bandera}</span>
+                <BanderaImg codigo={equipo.codigo} nombre={equipo.nombre} />
                 <span>{equipo.nombre}</span>
               </button>
             ))}
@@ -219,7 +220,7 @@ function PasoAlineacion({ porra, setPorra }) {
           ) : (
             <div className="lista-jugadores">
               <h4>
-                {infoBanderas(seleccionActiva)?.bandera}{' '}
+                <BanderaImg codigo={infoBanderas(seleccionActiva)?.codigo} nombre={infoBanderas(seleccionActiva)?.nombre} />{' '}
                 {infoBanderas(seleccionActiva)?.nombre} — Elige jugadores
               </h4>
 

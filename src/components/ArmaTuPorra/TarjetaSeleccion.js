@@ -1,5 +1,6 @@
 import React from 'react';
 import { CATEGORIAS } from './datos';
+import BanderaImg from './BanderaImg';
 
 // Tarjeta clicable para una selección. Cambia aspecto según si está seleccionada.
 function TarjetaSeleccion({ seleccion, seleccionada, onClick, deshabilitada, esGanadora }) {
@@ -18,7 +19,9 @@ function TarjetaSeleccion({ seleccion, seleccionada, onClick, deshabilitada, esG
       disabled={deshabilitada && !seleccionada}
       type="button"
     >
-      <span className="tarjeta-bandera">{seleccion.bandera}</span>
+      <span className="tarjeta-bandera">
+        <BanderaImg codigo={seleccion.codigo} nombre={seleccion.nombre} />
+      </span>
       <span className="tarjeta-nombre">{seleccion.nombre}</span>
       {esGanadora && <span className="tarjeta-ganadora-badge">★ Ganador</span>}
       {seleccionada && !esGanadora && <span className="tarjeta-check">✓</span>}

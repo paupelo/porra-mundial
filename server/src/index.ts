@@ -14,6 +14,7 @@ import publicRoutes from './routes/public.routes';
 import adminRoutes from './routes/admin.routes';
 import scraperRoutes from './routes/scraper.routes';
 import submitRoutes from './routes/submit.routes';
+import draftsRoutes from './routes/drafts.routes';
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ async function main() {
   // ── API ──────────────────────────────────────────────────────────────────────
   app.use('/api/auth',          authRoutes);
   app.use('/api/submit',        submitRoutes);
+  app.use('/api/drafts',        draftsRoutes);
   app.use('/api',               publicRoutes);
   app.use('/api/admin',         adminRoutes);
   app.use('/api/admin/scraper', scraperRoutes);

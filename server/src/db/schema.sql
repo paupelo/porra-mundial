@@ -114,6 +114,16 @@ CREATE TABLE IF NOT EXISTS porra_scores (
   calculated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ─── Borradores de porra (enlace reanudable) ─────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS porra_drafts (
+  token      TEXT PRIMARY KEY,
+  draft_json TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days')
+);
+
 -- ─── Admin ───────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS admin_users (

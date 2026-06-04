@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { porraVacia, SELECCIONES, CATEGORIAS } from './datos';
 import { validarAlineacion } from './PasoAlineacion';
 import PasoSelecciones from './PasoSelecciones';
@@ -10,20 +10,18 @@ import './ArmaTuPorra.css';
 const PASOS = ['Elige equipos', 'Arma tu 11', 'Revisión'];
 const SESSION_KEY = 'arma_tu_porra_draft';
 
-function loadDraft() {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+function sessionSave(paso, porra) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ paso, porra })); } catch {}
+}
+function sessionLoad() {
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
+}
+function sessionClear() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
 }
 
-function saveDraft(paso, porra, enviada) {
-  try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ paso, porra, enviada }));
-  } catch {}
+function getDraftTokenFromUrl() {
+  return new URLSearchParams(window.location.search).get('draft');
 }
 
 function puedeAvanzarPaso1(porra) {
@@ -41,14 +39,49 @@ function puedeAvanzarPaso2(porra) {
 }
 
 function ArmaTuPorra() {
-  const draft = loadDraft();
-  const [paso, setPaso] = useState(draft?.paso ?? 0);
-  const [porra, setPorra] = useState(draft?.porra ?? porraVacia());
-  const [enviada, setEnviada] = useState(draft?.enviada ?? null); // null | { nombre, email, porraId }
+  const [paso, setPaso] = useState(0);
+  const [porra, setPorra] = useState(porraVacia);
+  const [enviada, setEnviada] = useState(null);
+  const [draftToken, setDraftToken] = useState(null);
+  const [draftLink, setDraftLink] = useState(null);
+  const [saveState, setSaveState] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const initialized = useRef(false);
 
+  // Al montar: token en URL tiene prioridad, si no usa sessionStorage
   useEffect(() => {
-    saveDraft(paso, porra, enviada);
-  }, [paso, porra, enviada]);
+    if (initialized.current) return;
+    initialized.current = true;
+
+    const token = getDraftTokenFromUrl();
+    if (token) {
+      setLoadingDraft(true);
+      fetch(`/api/drafts/${token}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.porra) {
+            setPaso(data.paso ?? 0);
+            setPorra(data.porra);
+            setDraftToken(token);
+            setDraftLink(`${window.location.origin}/arma-tu-porra?draft=${token}`);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingDraft(false));
+    } else {
+      const local = sessionLoad();
+      if (local?.porra) {
+        setPaso(local.paso ?? 0);
+        setPorra(local.porra);
+      }
+    }
+  }, []);
+
+  // Guardar en sessionStorage al cambiar
+  useEffect(() => {
+    if (initialized.current) sessionSave(paso, porra);
+  }, [paso, porra]);
 
   function scrollTop() {
     window.scrollTo(0, 0);
@@ -66,12 +99,63 @@ function ArmaTuPorra() {
 
   function handleEnviar(datos) {
     setEnviada(datos);
-    sessionStorage.removeItem(SESSION_KEY);
+    sessionClear();
+  }
+
+  async function handleGuardar() {
+    setSaveState('saving');
+    try {
+      let token = draftToken;
+      if (token) {
+        await fetch(`/api/drafts/${token}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paso, porra }),
+        });
+      } else {
+        const res = await fetch('/api/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paso, porra }),
+        });
+        if (!res.ok) throw new Error('Error al guardar');
+        const data = await res.json();
+        token = data.token;
+        setDraftToken(token);
+        const link = `${window.location.origin}/arma-tu-porra?draft=${token}`;
+        setDraftLink(link);
+        window.history.replaceState(null, '', `/arma-tu-porra?draft=${token}`);
+      }
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 4000);
+    } catch {
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 4000);
+    }
+  }
+
+  function handleCopiar() {
+    if (!draftLink) return;
+    navigator.clipboard.writeText(draftLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
   }
 
   const puedeAvanzar =
     (paso === 0 && puedeAvanzarPaso1(porra)) ||
     (paso === 1 && puedeAvanzarPaso2(porra));
+
+  if (loadingDraft) {
+    return (
+      <div className="arma-porra">
+        <div className="arma-porra-header">
+          <h1>Arma tu Porra</h1>
+          <p className="draft-cargando">Cargando tu porra guardada...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (enviada) {
     return <ResumenPorra enviada={enviada} porra={porra} />;
@@ -118,6 +202,35 @@ function ArmaTuPorra() {
           >
             Siguiente →
           </button>
+        )}
+      </div>
+
+      {/* Guardar progreso */}
+      <div className="draft-save-area">
+        <button
+          className={`btn-guardar-draft ${saveState}`}
+          onClick={handleGuardar}
+          disabled={saveState === 'saving'}
+          type="button"
+        >
+          {saveState === 'saving' && 'Guardando...'}
+          {saveState === 'saved' && '✓ Guardado'}
+          {saveState === 'error' && 'Error al guardar'}
+          {saveState === 'idle' && (draftToken ? '💾 Guardar cambios' : '💾 Guardar progreso')}
+        </button>
+
+        {draftLink && (
+          <div className="draft-link-box">
+            <p className="draft-link-label">
+              Guarda este enlace para retomar tu porra desde cualquier dispositivo:
+            </p>
+            <div className="draft-link-row">
+              <span className="draft-link-text">{draftLink}</span>
+              <button className="btn-copiar" onClick={handleCopiar} type="button">
+                {copied ? '✓ Copiado' : 'Copiar'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

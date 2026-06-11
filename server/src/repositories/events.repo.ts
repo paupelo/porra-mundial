@@ -52,6 +52,13 @@ export const EventsRepo = {
     await getDb().query(`UPDATE match_player_events SET is_confirmed=1 WHERE match_id=$1`, [matchId]);
   },
 
+  async countByMatch(matchId: string): Promise<{ total: number; confirmed: number }> {
+    const result = await getDb().query(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_confirmed=1)::int AS confirmed
+         FROM match_player_events WHERE match_id=$1`, [matchId]);
+    return result.rows[0] as { total: number; confirmed: number };
+  },
+
   async delete(matchId: string, playerId: string): Promise<void> {
     await getDb().query('DELETE FROM match_player_events WHERE match_id=$1 AND player_id=$2', [matchId, playerId]);
   },

@@ -20,7 +20,7 @@ export type LineupRole = 'titular' | 'suplente';
 
 export type PorraStatus = 'pending' | 'approved' | 'rejected';
 
-export type EventSource = 'manual' | 'besoccer_draft';
+export type EventSource = 'manual' | 'besoccer_draft' | 'fifa_draft';
 
 // ─── Registros de base de datos (lo que devuelven los repos) ─────────────────
 
@@ -49,6 +49,12 @@ export interface MatchRecord {
   away_score: number | null;
   decided_by_penalties: 0 | 1;
   penalty_winner_id: string | null;
+  /** Campos del scraper de FIFA (null en partidos creados a mano) */
+  fifa_match_id?: string | null;
+  fifa_stage_id?: string | null;
+  group_name?: string | null;
+  venue?: string | null;
+  last_scraped_at?: string | null;
 }
 
 export interface MatchPlayerEventRecord {

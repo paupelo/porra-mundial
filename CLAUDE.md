@@ -23,12 +23,19 @@ Aplicación web para gestionar una porra (quiniela de fútbol) del Mundial 2026 
 |---|---|---|
 | Node + Express | — | Servidor ligero, sin overhead |
 | TypeScript | 5 | Motor de cálculo tipado y testeable |
-| better-sqlite3 | 9 | SQLite síncrono, archivo único, sin Docker |
+| **PostgreSQL (pg)** | 8 | **Migrado de SQLite a Render Postgres (Frankfurt) en `c91797a`**. `DATABASE_URL` en `.env` |
 | bcryptjs | 2 | Hash de contraseñas del admin |
 | jsonwebtoken | 9 | Auth JWT para el panel de admin |
-| Jest + ts-jest | 29 | 115 tests del motor de puntuación |
+| Jest + ts-jest | 29 | 134 tests (115 del motor + 19 del mapper de FIFA) |
 
-La capa de datos está aislada en `repositories/` → cambiar a Postgres/Supabase sin tocar el motor de cálculo.
+La capa de datos está aislada en `repositories/` (única que toca Postgres).
+
+### Hosting
+Servicio web en Render (plan free, Frankfurt) con auto-deploy desde `master` de GitHub.
+Un solo proceso sirve el frontend compilado (`build/`) y la API: `https://porra-mundial-1rco.onrender.com`.
+⚠️ El plan free duerme el proceso tras ~15 min sin tráfico → el scheduler de FIFA solo corre despierto;
+para puntuación realmente automática hace falta un ping externo periódico (p. ej. cron-job.org o UptimeRobot
+golpeando la home cada 10 min) o subir de plan.
 
 ---
 
@@ -56,6 +63,13 @@ porra-mundial/
 │   │   │   ├── database.ts           Singleton better-sqlite3
 │   │   │   └── migrate.ts           Aplica schema al arrancar
 │   │   ├── services/
+│   │   │   ├── recalc.ts            Recalcula y persiste: porra_scores + logs por partido
+│   │   │   ├── scheduler.ts         Scraping automático: tick cada 60s, estado derivado de la BD
+│   │   │   ├── fifa/                ★ Scraper de FIFA (api.fifa.com/v3, JSON)
+│   │   │   │   ├── client.ts         fetch con reintentos/backoff; endpoints seasons/calendar/timeline/live
+│   │   │   │   ├── mapper.ts         Funciones puras JSON FIFA → dominio (fases, estados, eventos, minutos)
+│   │   │   │   ├── mapper.test.ts    19 tests (códigos de evento verificados con datos reales 2026)
+│   │   │   │   └── sync.ts           Orquestador: upsert de partidos + borradores de eventos
 │   │   │   ├── scoring/             ★ NÚCLEO DEL SISTEMA (función pura + 115 tests)
 │   │   │   │   ├── engine.ts         Orquestador: eventos + porras → clasificación
 │   │   │   │   ├── selecciones.ts    Puntuación de equipos
@@ -73,12 +87,15 @@ porra-mundial/
 │   │   │   ├── matches.repo.ts      + PhaseResultsRepo
 │   │   │   ├── events.repo.ts
 │   │   │   ├── porras.repo.ts       + ParticipantsRepo, findAllFull()
-│   │   │   └── scores.repo.ts       Caché de puntuaciones calculadas
+│   │   │   ├── scores.repo.ts       Caché de puntuaciones calculadas
+│   │   │   └── points-log.repo.ts   team_points_log / player_points_log (desglose por partido)
 │   │   ├── routes/
 │   │   │   ├── auth.routes.ts        POST /api/auth/login
-│   │   │   ├── public.routes.ts      GET /api/clasificacion, /api/teams, /api/players
-│   │   │   ├── admin.routes.ts       CRUD completo + POST /api/admin/recalcular
-│   │   │   └── scraper.routes.ts     POST fetch borrador + save-draft
+│   │   │   ├── public.routes.ts      GET /api/clasificacion, /api/matches, /api/teams, /api/players
+│   │   │   ├── admin.routes.ts       CRUD completo + POST /api/admin/recalcular (confirmar ⇒ recalcula)
+│   │   │   ├── fifa.routes.ts        /api/admin/fifa: status, sync, tick, sync-match, matches-overview
+│   │   │   ├── scraper.routes.ts     POST fetch borrador + save-draft (BeSoccer, legacy)
+│   │   │   └── submit.routes.ts      POST /api/submit (envío público de porras, deadline 11-jun 19:00)
 │   │   ├── middleware/
 │   │   │   ├── auth.ts               Verifica JWT en cabecera Authorization
 │   │   │   └── errors.ts             Handler centralizado de errores Express
@@ -159,6 +176,7 @@ NODE_TLS_REJECT_UNAUTHORIZED=0 npm test
 - **Panel admin** — login, CRUD selecciones/jugadores/partidos/eventos, gestión de porras y alineaciones, botón "Recalcular clasificación"
 - **Pestaña Clasificación** — ranking general clickable + desglose completo por selección y jugador, con cada concepto y modificadores desglosados
 - **Scraper BeSoccer** — stub funcional: descarga HTML, extrae marcador básico, conciliador de nombres por trigramas; desactivado por defecto
+- **Puntuación automática FIFA** — scraper de api.fifa.com + scheduler + recálculo automático al confirmar + logs por partido + UI en Clasificación y Admin (ver sección propia más arriba)
 
 ### ❌ Pendiente / incompleto
 
@@ -168,6 +186,84 @@ NODE_TLS_REJECT_UNAUTHORIZED=0 npm test
 - **El campo de formación tiene errores visuales** — `CampoFormacion.js` tiene bugs conocidos (commit `b9c35f7` los menciona explícitamente). No crítico para el funcionamiento
 - **Parser de BeSoccer incompleto** — extrae marcador pero los eventos de jugadores (goles, asistencias, minutos) devuelven lista vacía; requiere ingeniería inversa del HTML de BeSoccer
 - **Firebase sin usar** — `firebase` en `package.json` del frontend, no referenciado en ningún fichero. Eliminar o decidir si se va a usar
+
+---
+
+## Puntuación automática con scraping de FIFA (junio 2026)
+
+### Arquitectura
+
+```
+api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa/sync.ts ──► matches + match_player_events (borradores)
+                                                                                │
+        scheduler.ts (tick 60s) ────────────────────────────────────────────────┤
+                                                                                ▼
+        admin confirma partido ──► recalc.ts ──► porra_scores + team_points_log + player_points_log
+                                                                                ▼
+        Clasificación (polling 60s) ◄── /api/clasificacion + /api/matches
+```
+
+- **Fuente:** la página pública de fifa.com es una SPA; se consume su API JSON interna
+  (`api.fifa.com/api/v3`). El IdSeason del Mundial 2026 (**285023**) se descubre solo;
+  `FIFA_SEASON_ID` lo fija a mano si hiciera falta. Todo el scraping ocurre en el servidor.
+- **Códigos de evento verificados contra el partido inaugural real** (México 2-0 Sudáfrica, 11-jun-2026):
+  `0` gol · `1` asistencia (evento propio) · `3`/`4` roja · `5` cambio · `2,7,8,12,15,16,18,26,57,71,78,79,83` ruido ignorado.
+  `34` autogol, `41` penalti fallado, `60` penalti parado y `Period=11` (tanda) quedan por verificar
+  cuando ocurran; hay respaldo por texto de la descripción y todo entra como borrador.
+- **Conciliación de nombres:** equipos por `country_code` FIFA (ARG, MEX…); jugadores por
+  similitud de trigramas (`besoccer/reconciler.ts`) contra la plantilla del equipo, umbral 0.45.
+  Los no conciliados se loguean y el admin los carga a mano.
+
+### Política de puntuación (¡importante!)
+
+- El **marcador** de un partido finalizado puntúa automáticamente tras el scrape + recálculo
+  (las victorias/derrotas/empates salen de `matches`, es un hecho objetivo → clasificación en tiempo real).
+- Los **eventos de jugadores** entran como borrador (`source='fifa_draft'`, `is_confirmed=0`) y solo
+  puntúan cuando el admin pulsa "Confirmar partido" (que ahora también dispara el recálculo).
+  `FIFA_AUTO_CONFIRM=true` salta esa revisión (no recomendado).
+- En **eliminatorias** se derivan `advanced`/`eliminated`/`winner` automáticamente al acabar el partido,
+  sin pisar lo que el admin haya fijado a mano. La **fase de grupos queda manual** (depende de
+  clasificaciones y mejores terceros). El partido por el **tercer puesto se omite** (la porra no lo puntúa).
+- El scraper **nunca pisa datos validados**: si un partido tiene eventos confirmados, FIFA solo
+  actualiza `last_scraped_at`.
+
+### Scheduler (`services/scheduler.ts`)
+
+- Tick cada 60 s. **Sin estado propio persistente**: cada tick decide mirando la BD
+  (`status`, `last_scraped_at`, eventos existentes) → sobrevive a reinicios.
+- Calendario completo: 1 petición. Refresco cada 6 h (`FIFA_CALENDAR_REFRESH_HOURS`), o cada
+  10 min si hay partidos "calientes" (en juego, o programados cuya hora de fin estimada ya pasó:
+  inicio + `FIFA_MATCH_DURATION_MIN` 105' + `FIFA_SCRAPE_DELAY_MIN` 15'). Cubre prórrogas y penaltis.
+- Partido finalizado sin eventos → descarga timeline + alineaciones y guarda borradores (una sola vez;
+  re-scrape manual desde el admin si hace falta).
+- Disparos manuales: `POST /api/admin/fifa/tick` (ciclo completo) y botón "Sincronizar con FIFA ahora"
+  en la sección **Resultados y eventos** del admin.
+
+### Tablas nuevas (todas aditivas; nada existente se modifica)
+
+- `matches` ganó columnas: `fifa_match_id` (único), `fifa_stage_id`, `group_name`, `venue`, `last_scraped_at`.
+- `team_points_log` / `player_points_log`: desglose de puntos por porra × partido (JSONB con los
+  `ScoreLineItem` del motor, brutos, multiplicador, total). Son una **proyección derivada**: se
+  regeneran completas en cada recálculo; la fuente de verdad sigue siendo eventos + porras.
+- Migraciones idempotentes en `migrate.ts`: los `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` de `matches`
+  corren **antes** de `schema.sql` (este crea un índice sobre `fifa_match_id`); el CHECK de
+  `match_player_events.source` se amplía con un par DROP+ADD idempotente para admitir `'fifa_draft'`.
+
+### Frontend (solo lógica/datos añadidos, cero cambios de diseño)
+
+- **Clasificación:** polling cada 60 s + columna "Dif." con el líder.
+- **Detalle de participante:** cada selección/jugador muestra tabla por partido
+  (Rival | Resultado | Fase | Brutos | Mult. | Pts) con desglose concepto a concepto expandible,
+  y modal "📜 Histórico completo" (`HistorialPorPartido.js`, componente nuevo).
+- **Admin → "Resultados y eventos"** (`AdminResultados.js`, sección nueva): estado del scheduler,
+  partidos con badge ⚠️ PENDIENTE, eventos editables inline, "Confirmar partido (recalcula puntos)"
+  y re-scrape por partido.
+
+### Variables de entorno nuevas (ver `.env.example`)
+
+`FIFA_ENABLED` (true) · `FIFA_COMPETITION_ID` (17) · `FIFA_SEASON_ID` (autodescubierto) ·
+`FIFA_MATCH_DURATION_MIN` (105) · `FIFA_SCRAPE_DELAY_MIN` (15) · `FIFA_CALENDAR_REFRESH_HOURS` (6) ·
+`FIFA_AUTO_CONFIRM` (false)
 
 ---
 

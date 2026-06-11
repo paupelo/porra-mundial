@@ -3,7 +3,7 @@ import { ScoresRepo } from '../repositories/scores.repo';
 import { PorrasRepo } from '../repositories/porras.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
 import { PlayersRepo } from '../repositories/players.repo';
-import { PhaseResultsRepo } from '../repositories/matches.repo';
+import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
 
 const router = Router();
 
@@ -91,6 +91,30 @@ router.get('/porras/:porraId', async (req, res, next) => {
         };
       }),
     });
+  } catch (e) { next(e); }
+});
+
+/** GET /api/matches — partidos con nombres de equipos (para el desglose por partido) */
+router.get('/matches', async (_req, res, next) => {
+  try {
+    const [matches, teams] = await Promise.all([MatchesRepo.findAll(), TeamsRepo.findAll()]);
+    const teamById = new Map(teams.map(t => [t.id, t]));
+    res.json(matches.map(m => ({
+      id: m.id,
+      phase: m.phase,
+      match_date: m.match_date,
+      status: m.status,
+      home_team_id: m.home_team_id,
+      away_team_id: m.away_team_id,
+      home_team_name: teamById.get(m.home_team_id)?.name ?? m.home_team_id,
+      away_team_name: teamById.get(m.away_team_id)?.name ?? m.away_team_id,
+      home_score: m.home_score,
+      away_score: m.away_score,
+      decided_by_penalties: m.decided_by_penalties,
+      penalty_winner_id: m.penalty_winner_id,
+      group_name: m.group_name ?? null,
+      venue: m.venue ?? null,
+    })));
   } catch (e) { next(e); }
 });
 

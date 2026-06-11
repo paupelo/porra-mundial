@@ -13,8 +13,10 @@ import authRoutes from './routes/auth.routes';
 import publicRoutes from './routes/public.routes';
 import adminRoutes from './routes/admin.routes';
 import scraperRoutes from './routes/scraper.routes';
+import fifaRoutes from './routes/fifa.routes';
 import submitRoutes from './routes/submit.routes';
 import draftsRoutes from './routes/drafts.routes';
+import { startScheduler } from './services/scheduler';
 
 dotenv.config();
 
@@ -55,6 +57,7 @@ async function main() {
   app.use('/api',               publicRoutes);
   app.use('/api/admin',         adminRoutes);
   app.use('/api/admin/scraper', scraperRoutes);
+  app.use('/api/admin/fifa',    fifaRoutes);
 
   app.use(errorHandler);
 
@@ -74,6 +77,9 @@ async function main() {
   }
 
   app.listen(PORT, () => console.log(`🚀 Servidor en http://localhost:${PORT}`));
+
+  // Scraping automático de FIFA (desactivable con FIFA_ENABLED=false)
+  startScheduler();
 }
 
 main().catch(console.error);

@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS matches (
   away_score           INTEGER,
   decided_by_penalties INTEGER NOT NULL DEFAULT 0,
   penalty_winner_id    TEXT REFERENCES teams(id),
+  fifa_match_id        TEXT,
+  fifa_stage_id        TEXT,
+  group_name           TEXT,
+  venue                TEXT,
+  last_scraped_at      TIMESTAMPTZ,
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -50,7 +55,7 @@ CREATE TABLE IF NOT EXISTS match_player_events (
   penalty_missed_shootout   INTEGER NOT NULL DEFAULT 0,
   own_goals                 INTEGER NOT NULL DEFAULT 0,
   is_improvised_goalkeeper  INTEGER NOT NULL DEFAULT 0,
-  source                    TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','besoccer_draft')),
+  source                    TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','besoccer_draft','fifa_draft')),
   is_confirmed              INTEGER NOT NULL DEFAULT 0,
   created_at                TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, player_id)
@@ -124,6 +129,40 @@ CREATE TABLE IF NOT EXISTS porra_drafts (
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days')
 );
 
+-- ─── Logs de puntos por partido (derivados del motor; se regeneran al recalcular) ──
+
+CREATE TABLE IF NOT EXISTS team_points_log (
+  id               TEXT PRIMARY KEY,
+  porra_id         TEXT NOT NULL REFERENCES porras(id) ON DELETE CASCADE,
+  team_id          TEXT NOT NULL REFERENCES teams(id),
+  team_name        TEXT NOT NULL,
+  match_id         TEXT REFERENCES matches(id) ON DELETE SET NULL,
+  category         TEXT NOT NULL,
+  is_ganador       INTEGER NOT NULL DEFAULT 0,
+  points_breakdown JSONB,
+  points_raw       DOUBLE PRECISION NOT NULL DEFAULT 0,
+  multiplier       DOUBLE PRECISION NOT NULL DEFAULT 1,
+  points_total     DOUBLE PRECISION NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS player_points_log (
+  id                  TEXT PRIMARY KEY,
+  porra_id            TEXT NOT NULL REFERENCES porras(id) ON DELETE CASCADE,
+  player_id           TEXT NOT NULL REFERENCES players(id),
+  player_name         TEXT NOT NULL,
+  match_id            TEXT REFERENCES matches(id) ON DELETE SET NULL,
+  position            TEXT NOT NULL,
+  is_captain          INTEGER NOT NULL DEFAULT 0,
+  is_substitute       INTEGER NOT NULL DEFAULT 0,
+  substitute_promoted INTEGER NOT NULL DEFAULT 0,
+  points_breakdown    JSONB,
+  points_raw          DOUBLE PRECISION NOT NULL DEFAULT 0,
+  multiplier          DOUBLE PRECISION NOT NULL DEFAULT 1,
+  points_total        DOUBLE PRECISION NOT NULL DEFAULT 0,
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ─── Admin ───────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS admin_users (
@@ -143,3 +182,8 @@ CREATE INDEX IF NOT EXISTS idx_events_confirmed ON match_player_events(is_confir
 CREATE INDEX IF NOT EXISTS idx_phase_results    ON team_phase_results(team_id);
 CREATE INDEX IF NOT EXISTS idx_porra_sel        ON porra_selections(porra_id);
 CREATE INDEX IF NOT EXISTS idx_porra_lineup     ON porra_lineup(porra_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_fifa     ON matches(fifa_match_id) WHERE fifa_match_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_team_log_porra   ON team_points_log(porra_id);
+CREATE INDEX IF NOT EXISTS idx_team_log_match   ON team_points_log(match_id);
+CREATE INDEX IF NOT EXISTS idx_player_log_porra ON player_points_log(porra_id);
+CREATE INDEX IF NOT EXISTS idx_player_log_match ON player_points_log(match_id);

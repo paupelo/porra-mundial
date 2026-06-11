@@ -857,13 +857,13 @@ describe('calcularClasificacion (integración)', () => {
 
     const porras: PorraFull[] = [
       {
-        porra: { id: 'p1', participant_id: 'u1', is_locked: 0 },
+        porra: { id: 'p1', participant_id: 'u1', is_locked: 0, status: 'approved', submitted_email: null, submitted_data_json: null },
         participant: { id: 'u1', name: 'Alice', email: null },
         selections: [{ id: 's1', porra_id: 'p1', team_id: 'esp', is_winner: 0 }],
         lineup: [{ id: 'l1', porra_id: 'p1', player_id: 'gk1', role: 'titular', position_slot: 'portero', is_captain: 0 }],
       },
       {
-        porra: { id: 'p2', participant_id: 'u2', is_locked: 0 },
+        porra: { id: 'p2', participant_id: 'u2', is_locked: 0, status: 'approved', submitted_email: null, submitted_data_json: null },
         participant: { id: 'u2', name: 'Bob', email: null },
         selections: [{ id: 's2', porra_id: 'p2', team_id: 'bra', is_winner: 0 }],
         lineup: [{ id: 'l2', porra_id: 'p2', player_id: 'gk2', role: 'titular', position_slot: 'portero', is_captain: 0 }],
@@ -888,7 +888,7 @@ describe('calcularClasificacion (integración)', () => {
     const events = [makeEvent('m1', 'gk1', 'esp', { goals_open_play: 1 })];
 
     const porras: PorraFull[] = [{
-      porra: { id: 'p1', participant_id: 'u1', is_locked: 0 },
+      porra: { id: 'p1', participant_id: 'u1', is_locked: 0, status: 'approved', submitted_email: null, submitted_data_json: null },
       participant: { id: 'u1', name: 'Alice', email: null },
       selections: [{ id: 's1', porra_id: 'p1', team_id: 'esp', is_winner: 0 }],
       lineup: [{ id: 'l1', porra_id: 'p1', player_id: 'gk1', role: 'titular', position_slot: 'portero', is_captain: 0 }],
@@ -908,7 +908,7 @@ describe('calcularClasificacion (integración)', () => {
     const events = [makeEvent('m1', 'gk1', 'esp', { goals_open_play: 3, is_confirmed: 0 })];
 
     const porras: PorraFull[] = [{
-      porra: { id: 'p1', participant_id: 'u1', is_locked: 0 },
+      porra: { id: 'p1', participant_id: 'u1', is_locked: 0, status: 'approved', submitted_email: null, submitted_data_json: null },
       participant: { id: 'u1', name: 'Alice', email: null },
       selections: [{ id: 's1', porra_id: 'p1', team_id: 'esp', is_winner: 0 }],
       lineup: [{ id: 'l1', porra_id: 'p1', player_id: 'gk1', role: 'titular', position_slot: 'portero', is_captain: 0 }],

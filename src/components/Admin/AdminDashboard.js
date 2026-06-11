@@ -3,6 +3,7 @@ import AdminSelecciones from './AdminSelecciones';
 import AdminJugadores from './AdminJugadores';
 import AdminPartidos from './AdminPartidos';
 import AdminEventos from './AdminEventos';
+import AdminResultados from './AdminResultados';
 import AdminParticipantes from './AdminParticipantes';
 import AdminPorras from './AdminPorras';
 import { apiPost } from '../../hooks/useApi';
@@ -13,6 +14,7 @@ const SECTIONS = [
   { id: 'jugadores',    label: 'Jugadores',      icon: '👤' },
   { id: 'partidos',     label: 'Partidos',       icon: '⚽' },
   { id: 'eventos',      label: 'Eventos',        icon: '📋' },
+  { id: 'resultados',   label: 'Resultados y eventos', icon: '📡' },
   { id: 'participantes',label: 'Participantes',  icon: '👥' },
   { id: 'porras',       label: 'Porras',         icon: '📝' },
 ];
@@ -39,6 +41,7 @@ export default function AdminDashboard({ onLogout }) {
     jugadores:     <AdminJugadores />,
     partidos:      <AdminPartidos />,
     eventos:       <AdminEventos />,
+    resultados:    <AdminResultados />,
     participantes: <AdminParticipantes />,
     porras:        <AdminPorras />,
   };

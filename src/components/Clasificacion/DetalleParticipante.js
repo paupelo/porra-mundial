@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiGet } from '../../hooks/useApi';
 import CampoFormacion from '../ArmaTuPorra/CampoFormacion';
 import { SELECCIONES, CATEGORIAS } from '../ArmaTuPorra/datos';
+import { TablaPorPartido, HistorialModal } from './HistorialPorPartido';
 
 const CAT_LABELS = { favoritos: 'Favoritos', sorpresas: 'Sorpresas', petardazos: 'Petardazos', cacaDeLaVaca: 'Caca de la Vaca', caca: 'Caca de la Vaca' };
 const CAT_COLORS = { favoritos: '#C41E3A', sorpresas: '#1E5BB8', petardazos: '#1FA67A', caca: '#5A6478', cacaDeLaVaca: '#5A6478' };
@@ -29,8 +30,9 @@ function ConceptRow({ item }) {
   );
 }
 
-function SelCard({ sel }) {
+function SelCard({ sel, matchesById }) {
   const [open, setOpen] = useState(false);
+  const [historial, setHistorial] = useState(false);
   return (
     <div className={`sel-card${sel.isWinner ? ' is-winner' : ''}`}>
       <div className="sel-card-header" onClick={() => setOpen(o => !o)} style={{ cursor: 'pointer' }}>
@@ -47,19 +49,41 @@ function SelCard({ sel }) {
         </div>
       </div>
       {open && sel.items && sel.items.length > 0 && (
-        <div className="breakdown-wrap">
-          <table className="breakdown-table">
-            <thead><tr><th>Concepto</th><th>Fase</th><th>Modificadores</th><th style={{ textAlign: 'right' }}>Pts</th></tr></thead>
-            <tbody>{sel.items.map((it, i) => <ConceptRow key={i} item={it} />)}</tbody>
-          </table>
-        </div>
+        matchesById ? (
+          <>
+            <TablaPorPartido items={sel.items} matchesById={matchesById} teamId={sel.teamId} />
+            <button
+              onClick={e => { e.stopPropagation(); setHistorial(true); }}
+              style={{ border: 'none', background: '#f1f5f9', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: '#003DA5', margin: '4px 0 8px' }}
+            >
+              📜 Histórico completo
+            </button>
+          </>
+        ) : (
+          <div className="breakdown-wrap">
+            <table className="breakdown-table">
+              <thead><tr><th>Concepto</th><th>Fase</th><th>Modificadores</th><th style={{ textAlign: 'right' }}>Pts</th></tr></thead>
+              <tbody>{sel.items.map((it, i) => <ConceptRow key={i} item={it} />)}</tbody>
+            </table>
+          </div>
+        )
+      )}
+      {historial && (
+        <HistorialModal
+          titulo={`${sel.teamName}${sel.isWinner ? ' ⭐' : ''}`}
+          subtitulo={`${CAT_LABELS[sel.category] ?? sel.category} · partido a partido en esta porra`}
+          onClose={() => setHistorial(false)}
+        >
+          <TablaPorPartido items={sel.items} matchesById={matchesById} teamId={sel.teamId} expandido />
+        </HistorialModal>
       )}
     </div>
   );
 }
 
-function JugadorCard({ jug }) {
+function JugadorCard({ jug, matchesById }) {
   const [open, setOpen] = useState(false);
+  const [historial, setHistorial] = useState(false);
   return (
     <div className="jugador-card">
       <div className="jugador-card-header" onClick={() => setOpen(o => !o)}>
@@ -79,12 +103,33 @@ function JugadorCard({ jug }) {
         </div>
       </div>
       {open && jug.items && jug.items.length > 0 && (
-        <div className="breakdown-wrap">
-          <table className="breakdown-table">
-            <thead><tr><th>Concepto</th><th>Fase</th><th>Modificadores</th><th style={{ textAlign: 'right' }}>Pts</th></tr></thead>
-            <tbody>{jug.items.map((it, i) => <ConceptRow key={i} item={it} />)}</tbody>
-          </table>
-        </div>
+        matchesById ? (
+          <>
+            <TablaPorPartido items={jug.items} matchesById={matchesById} />
+            <button
+              onClick={e => { e.stopPropagation(); setHistorial(true); }}
+              style={{ border: 'none', background: '#f1f5f9', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, color: '#003DA5', margin: '4px 0 8px' }}
+            >
+              📜 Histórico completo
+            </button>
+          </>
+        ) : (
+          <div className="breakdown-wrap">
+            <table className="breakdown-table">
+              <thead><tr><th>Concepto</th><th>Fase</th><th>Modificadores</th><th style={{ textAlign: 'right' }}>Pts</th></tr></thead>
+              <tbody>{jug.items.map((it, i) => <ConceptRow key={i} item={it} />)}</tbody>
+            </table>
+          </div>
+        )
+      )}
+      {historial && (
+        <HistorialModal
+          titulo={`${jug.playerName}${jug.isCaptain ? ' ⭐ CAP' : ''}`}
+          subtitulo={`${POS_LABELS[jug.position] ?? jug.position} · ${jug.role === 'suplente' ? 'Suplente' : 'Titular'} · partido a partido en esta porra`}
+          onClose={() => setHistorial(false)}
+        >
+          <TablaPorPartido items={jug.items} matchesById={matchesById} expandido />
+        </HistorialModal>
       )}
     </div>
   );
@@ -109,6 +154,7 @@ function buildCampoProps(lineup) {
 export default function DetalleParticipante({ porraId, onBack }) {
   const [score,   setScore]   = useState(null);
   const [porraData, setPorraData] = useState(null);
+  const [matchesById, setMatchesById] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('porra'); // 'porra' | 'puntuacion'
 
@@ -116,9 +162,13 @@ export default function DetalleParticipante({ porraId, onBack }) {
     Promise.allSettled([
       apiGet(`/clasificacion/${porraId}`),
       apiGet(`/porras/${porraId}`),
-    ]).then(([scoreRes, porraRes]) => {
+      apiGet('/matches'),
+    ]).then(([scoreRes, porraRes, matchesRes]) => {
       if (scoreRes.status === 'fulfilled') setScore(scoreRes.value);
       if (porraRes.status === 'fulfilled') setPorraData(porraRes.value);
+      if (matchesRes.status === 'fulfilled' && Array.isArray(matchesRes.value)) {
+        setMatchesById(new Map(matchesRes.value.map(m => [m.id, m])));
+      }
       setLoading(false);
     });
   }, [porraId]);
@@ -239,14 +289,14 @@ export default function DetalleParticipante({ porraId, onBack }) {
             <div className="detalle-section">
               <h3>Selecciones ({selecciones.length})</h3>
               <div className="sel-grid">
-                {selecciones.map(s => <SelCard key={s.teamId} sel={s} />)}
+                {selecciones.map(s => <SelCard key={s.teamId} sel={s} matchesById={matchesById} />)}
               </div>
             </div>
           )}
           {jugadores.length > 0 && (
             <div className="detalle-section">
               <h3>Jugadores ({jugadores.length})</h3>
-              {jugadores.map(j => <JugadorCard key={j.playerId} jug={j} />)}
+              {jugadores.map(j => <JugadorCard key={j.playerId} jug={j} matchesById={matchesById} />)}
             </div>
           )}
         </div>

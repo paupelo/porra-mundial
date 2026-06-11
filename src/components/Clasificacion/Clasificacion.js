@@ -10,10 +10,16 @@ export default function Clasificacion() {
   const [selectedPorraId, setSelectedPorraId] = useState(null);
 
   useEffect(() => {
-    apiGet('/clasificacion')
-      .then(setRanking)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+    let alive = true;
+    const load = () =>
+      apiGet('/clasificacion')
+        .then(d => { if (alive) { setRanking(d); setError(null); } })
+        .catch(e => { if (alive) setError(e.message); })
+        .finally(() => { if (alive) setLoading(false); });
+    load();
+    // Actualización en tiempo real: el scheduler recalcula en el servidor
+    const timer = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(timer); };
   }, []);
 
   if (selectedPorraId) {
@@ -59,6 +65,7 @@ export default function Clasificacion() {
                 <th style={{ width: 48 }}>#</th>
                 <th>Participante</th>
                 <th style={{ textAlign: 'right' }}>Puntos</th>
+                <th style={{ textAlign: 'right' }}>Dif.</th>
               </tr>
             </thead>
             <tbody>
@@ -76,6 +83,9 @@ export default function Clasificacion() {
                   </td>
                   <td className="participant-name">{entry.participantName}</td>
                   <td className="participant-pts">{entry.totalPoints.toFixed(1)}</td>
+                  <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '0.8rem' }}>
+                    {entry.position === 1 ? '—' : (entry.totalPoints - ranking[0].totalPoints).toFixed(1)}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -4,13 +4,34 @@ import path from 'path';
 
 export async function runMigrations(): Promise<void> {
   const db = getDb();
+
+  // Columnas nuevas en tablas existentes. Deben ir ANTES de schema.sql porque
+  // este crea un índice sobre matches(fifa_match_id) que fallaría si la columna
+  // no existe todavía en una BD antigua. En una BD nueva fallan (la tabla aún no
+  // existe) y se ignoran: schema.sql ya crea la tabla con estas columnas.
+  const preAlters = [
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS fifa_match_id TEXT',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS fifa_stage_id TEXT',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS group_name TEXT',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS venue TEXT',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS last_scraped_at TIMESTAMPTZ',
+  ];
+  for (const sql of preAlters) {
+    await db.query(sql).catch(() => {});
+  }
+
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
   await db.query(schema);
+
   // Add columns if missing (idempotent ALTER TABLE)
   const alters = [
     "ALTER TABLE porras ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'",
-    "ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_email TEXT",
-    "ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_data_json TEXT",
+    'ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_email TEXT',
+    'ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_data_json TEXT',
+    // Ampliar el CHECK de source para admitir borradores del scraper de FIFA.
+    // El par DROP+ADD es idempotente ejecutado en este orden.
+    'ALTER TABLE match_player_events DROP CONSTRAINT IF EXISTS match_player_events_source_check',
+    "ALTER TABLE match_player_events ADD CONSTRAINT match_player_events_source_check CHECK (source IN ('manual','besoccer_draft','fifa_draft'))",
   ];
   for (const sql of alters) {
     await db.query(sql).catch(() => {});

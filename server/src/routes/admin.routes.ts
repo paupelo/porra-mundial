@@ -5,10 +5,8 @@ import { PlayersRepo } from '../repositories/players.repo';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
 import { EventsRepo } from '../repositories/events.repo';
 import { PorrasRepo, ParticipantsRepo } from '../repositories/porras.repo';
-import { ScoresRepo } from '../repositories/scores.repo';
-import { calcularClasificacion } from '../services/scoring/engine';
 import { sendRejectionEmail } from '../services/email';
-import { CalcInput } from '../types';
+import { recalcularYGuardar } from '../services/recalc';
 
 const router = Router();
 router.use(requireAdmin);
@@ -78,7 +76,12 @@ router.post('/events', async (req, res, next) => {
   try { await EventsRepo.upsert(req.body); res.json({ ok: true }); } catch (e) { next(e); }
 });
 router.post('/events/:matchId/confirm', async (req, res, next) => {
-  try { await EventsRepo.confirmAll(req.params.matchId); res.json({ ok: true }); } catch (e) { next(e); }
+  try {
+    await EventsRepo.confirmAll(req.params.matchId);
+    // Confirmar dispara el recálculo: los borradores pasan a contar de inmediato
+    const results = await recalcularYGuardar();
+    res.json({ ok: true, recalculated: results.length });
+  } catch (e) { next(e); }
 });
 router.delete('/events/:matchId/:playerId', async (req, res, next) => {
   try { await EventsRepo.delete(req.params.matchId, req.params.playerId); res.json({ ok: true }); } catch (e) { next(e); }
@@ -155,21 +158,7 @@ router.post('/porras/bulk-approve', async (req, res, next) => {
 // ── Recalcular clasificación ────────────────────────────────────────────────
 router.post('/recalcular', async (_req, res, next) => {
   try {
-    const input: CalcInput = {
-      matches:          await MatchesRepo.findAll(),
-      events:           await EventsRepo.findAllConfirmed(),
-      teamPhaseResults: await PhaseResultsRepo.findAll(),
-      porras:           await PorrasRepo.findAllFull(),
-      teams:            await TeamsRepo.findAll(),
-      players:          await PlayersRepo.findAll(),
-    };
-
-    const results = calcularClasificacion(input);
-
-    for (const r of results) {
-      await ScoresRepo.upsert(r.porraId, r.totalPoints, r.breakdown);
-    }
-
+    const results = await recalcularYGuardar();
     res.json({ recalculated: results.length, results: results.map(r => ({ porraId: r.porraId, participantName: r.participantName, totalPoints: r.totalPoints })) });
   } catch (e) { next(e); }
 });

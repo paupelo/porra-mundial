@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { apiGet } from '../../hooks/useApi';
 import DetalleParticipante from './DetalleParticipante';
+import ComparadorPorras from './ComparadorPorras';
+import ResumenElegidos from './ResumenElegidos';
 import './Clasificacion.css';
+
+const VISTAS = [
+  ['ranking', '🏆 Clasificación'],
+  ['comparador', '⚖️ Comparador de porras'],
+  ['resumen', '📊 Resumen de elegidos'],
+];
 
 export default function Clasificacion() {
   const [ranking, setRanking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPorraId, setSelectedPorraId] = useState(null);
+  const [vista, setVista] = useState('ranking');
 
   useEffect(() => {
     let alive = true;
@@ -43,22 +52,43 @@ export default function Clasificacion() {
       </div>
 
       <div className="clas-content">
-        {loading && <div className="clas-loading">Cargando clasificación…</div>}
+        {/* Subsecciones de la pestaña Clasificación */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          {VISTAS.map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setVista(id)}
+              style={{
+                padding: '8px 20px', borderRadius: 24, border: 'none', cursor: 'pointer',
+                fontWeight: 700, fontSize: '0.85rem',
+                background: vista === id ? '#003DA5' : '#f1f5f9',
+                color: vista === id ? '#fff' : '#374151',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        {error && (
+        {vista === 'comparador' && <ComparadorPorras participantes={ranking} />}
+        {vista === 'resumen' && <ResumenElegidos />}
+
+        {vista === 'ranking' && loading && <div className="clas-loading">Cargando clasificación…</div>}
+
+        {vista === 'ranking' && error && (
           <div className="clas-empty">
             <p>⚠️ No se pudo cargar la clasificación. Asegúrate de que el servidor está corriendo.</p>
           </div>
         )}
 
-        {!loading && !error && (!ranking || ranking.length === 0) && (
+        {vista === 'ranking' && !loading && !error && (!ranking || ranking.length === 0) && (
           <div className="clas-empty">
             <p style={{ fontSize: '2rem' }}>🏆</p>
             <p>La clasificación está vacía. El admin debe cargar y validar los primeros eventos.</p>
           </div>
         )}
 
-        {ranking && ranking.length > 0 && (
+        {vista === 'ranking' && ranking && ranking.length > 0 && (
           <table className="ranking-table">
             <thead>
               <tr>

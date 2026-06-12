@@ -1,0 +1,49 @@
+/* Comparador de porras — mismo lenguaje visual que Clasificación.
+   Solo clases nuevas con prefijo comp-. */
+
+.comp-selectores {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px;
+}
+.comp-selectores select {
+  padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;
+  font-size: 0.85rem; background: #fff; color: #1e293b; min-width: 180px;
+}
+
+.comp-scroll { overflow-x: auto; padding-bottom: 8px; }
+
+.comp-table {
+  display: grid; gap: 0;
+  border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
+  min-width: fit-content;
+}
+.comp-head {
+  background: #f1f5f9; font-weight: 800; font-size: 0.85rem; color: #003DA5;
+  padding: 12px 14px; border-bottom: 2px solid #e2e8f0;
+}
+.comp-label {
+  background: #f8fafc; font-size: 0.68rem; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: #64748b; padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9; display: flex; align-items: flex-start;
+}
+.comp-cell {
+  padding: 10px 12px; border-bottom: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9;
+  display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start;
+}
+.comp-section {
+  grid-column: 1 / -1;
+  background: #003DA5; color: #fff; font-size: 0.72rem; font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase; padding: 8px 14px;
+}
+
+.comp-chip {
+  font-size: 0.78rem; font-weight: 600; color: #1e293b;
+  background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px;
+  padding: 3px 10px; white-space: nowrap;
+}
+/* Coincidencia: el mismo equipo/jugador está en 2+ porras comparadas */
+.comp-chip.match {
+  background: #fef9c3; border-color: #f59e0b; color: #92400e;
+}
+.comp-vacio { color: #cbd5e1; font-size: 0.78rem; }
+
+.comp-hint { font-size: 0.8rem; color: #94a3b8; margin: 8px 0 16px; }

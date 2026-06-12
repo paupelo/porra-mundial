@@ -166,12 +166,16 @@ async function tick(): Promise<void> {
       if (counts.total === 0 || counts.live > 0) {
         log(`scrapeando eventos de ${m.id} (FIFA ${m.fifa_match_id})…`);
         const summary = await syncMatchEvents(m);
-        log(`eventos de ${m.id}: ${summary.saved} borradores guardados, ${summary.unreconciled.length} sin conciliar`);
+        log(`eventos de ${m.id}: ${summary.saved} guardados, ${summary.unreconciled.length} sin conciliar`);
         didWork = true;
-        if (process.env.FIFA_AUTO_CONFIRM === 'true' && summary.saved > 0) {
-          await EventsRepo.confirmAll(m.id);
-          log(`auto-confirmados los eventos de ${m.id} (FIFA_AUTO_CONFIRM=true)`);
-        }
+      }
+      // Sin aprobación manual: los eventos de un partido finalizado puntúan
+      // automáticamente. El admin puede corregirlos a posteriori en el panel.
+      const after = await EventsRepo.countByMatch(m.id);
+      if (after.confirmed < after.total) {
+        await EventsRepo.confirmAll(m.id);
+        log(`eventos de ${m.id} aplicados automáticamente (${after.total})`);
+        didWork = true;
       }
       await deriveKnockoutPhaseResults(m);
     }

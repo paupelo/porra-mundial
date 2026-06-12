@@ -84,15 +84,6 @@ function PanelPartido({ match, playerMap, setMsg, refrescar }) {
 
   useEffect(() => { cargarEventos(); }, [cargarEventos]);
 
-  async function confirmarPartido() {
-    try {
-      const r = await apiPost(`/admin/events/${match.id}/confirm`, {});
-      setMsg(`✓ Partido confirmado · clasificación recalculada (${r.recalculated} porras)`);
-      cargarEventos();
-      refrescar();
-    } catch (e) { setMsg('Error: ' + e.message); }
-  }
-
   async function reScrapear() {
     try {
       const r = await apiPost(`/admin/fifa/sync-match/${match.id}`, {});
@@ -103,10 +94,10 @@ function PanelPartido({ match, playerMap, setMsg, refrescar }) {
 
   return (
     <div style={{ padding: '8px 0 16px' }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button className="btn btn-success btn-sm" onClick={confirmarPartido}>
-          ✓ Confirmar partido (recalcula puntos)
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+          Las puntuaciones se aplican automáticamente al finalizar el partido. Si corriges un evento, se recalcula al guardar.
+        </span>
         {match.fifa_match_id && (
           <button className="btn btn-sm" onClick={reScrapear}>📡 Re-scrapear eventos de FIFA</button>
         )}
@@ -114,7 +105,7 @@ function PanelPartido({ match, playerMap, setMsg, refrescar }) {
       {events === null && <p style={{ color: '#94a3b8' }}>Cargando eventos…</p>}
       {events && events.length === 0 && (
         <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-          Sin eventos todavía. Llegarán solos cuando el scheduler scrapee el partido, o añádelos en la pestaña «Eventos».
+          Sin eventos todavía. Llegarán y puntuarán solos cuando el scheduler scrapee el partido, o añádelos en la pestaña «Eventos».
         </p>
       )}
       {events && events.length > 0 && (
@@ -172,7 +163,6 @@ export default function AdminResultados() {
     finally { setSyncing(false); }
   }
 
-  const pendientes = overview.filter(m => m.needs_confirmation);
   const finalizados = overview.filter(m => m.status === 'finished');
   const ordenados = [...overview].sort((a, b) => {
     if (a.needs_confirmation !== b.needs_confirmation) return a.needs_confirmation ? -1 : 1;
@@ -195,7 +185,7 @@ export default function AdminResultados() {
               {fifaStatus?.lastError && <span style={{ color: '#b91c1c' }}> · Último error: {fifaStatus.lastError}</span>}
             </p>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0' }}>
-              {finalizados.length} partidos finalizados · <strong>{pendientes.length} pendientes de confirmar</strong>
+              {finalizados.length} partidos finalizados · las puntuaciones se aplican <strong>automáticamente</strong> al finalizar
             </p>
           </div>
           <button className="btn btn-primary" onClick={sincronizarAhora} disabled={syncing}>
@@ -207,7 +197,7 @@ export default function AdminResultados() {
       <div className="admin-card">
         <table className="admin-table">
           <thead>
-            <tr><th>Partido</th><th>Fase</th><th>Fecha</th><th>Estado</th><th>Marcador</th><th>Eventos</th><th>Confirmación</th></tr>
+            <tr><th>Partido</th><th>Fase</th><th>Fecha</th><th>Estado</th><th>Marcador</th><th>Eventos</th><th>Puntuación</th></tr>
           </thead>
           <tbody>
             {ordenados.map(m => (
@@ -230,9 +220,9 @@ export default function AdminResultados() {
                   <td>{m.events_confirmed}/{m.events_total}</td>
                   <td>
                     {m.status !== 'finished' ? '—' : m.needs_confirmation
-                      ? <span className="badge badge-draft">⚠️ PENDIENTE</span>
+                      ? <span className="badge badge-draft">⏳ Aplicando…</span>
                       : m.events_total > 0
-                        ? <span className="badge badge-confirmed">✓ Confirmado</span>
+                        ? <span className="badge badge-confirmed">✓ Aplicada</span>
                         : <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>sin eventos</span>}
                   </td>
                 </tr>

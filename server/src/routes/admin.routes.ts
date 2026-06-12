@@ -47,7 +47,16 @@ router.post('/matches', async (req, res, next) => {
   try { res.json(await MatchesRepo.create(req.body)); } catch (e) { next(e); }
 });
 router.put('/matches/:id', async (req, res, next) => {
-  try { await MatchesRepo.update(req.params.id, req.body); res.json({ ok: true }); } catch (e) { next(e); }
+  try {
+    await MatchesRepo.update(req.params.id, req.body);
+    // Marcar un partido como finalizado aplica sus puntuaciones automáticamente
+    // (sin paso de aprobación): se confirman sus eventos y se recalcula.
+    if (req.body.status === 'finished') {
+      await EventsRepo.confirmAll(req.params.id);
+      await recalcularYGuardar();
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
 });
 router.delete('/matches/:id', async (req, res, next) => {
   try { await MatchesRepo.delete(req.params.id); res.json({ ok: true }); } catch (e) { next(e); }
@@ -73,7 +82,12 @@ router.get('/events/:matchId', async (req, res, next) => {
   try { res.json(await EventsRepo.findByMatch(req.params.matchId)); } catch (e) { next(e); }
 });
 router.post('/events', async (req, res, next) => {
-  try { await EventsRepo.upsert(req.body); res.json({ ok: true }); } catch (e) { next(e); }
+  try {
+    await EventsRepo.upsert(req.body);
+    // Sin aprobación manual: cualquier corrección de eventos se aplica al momento
+    await recalcularYGuardar();
+    res.json({ ok: true });
+  } catch (e) { next(e); }
 });
 router.post('/events/:matchId/confirm', async (req, res, next) => {
   try {

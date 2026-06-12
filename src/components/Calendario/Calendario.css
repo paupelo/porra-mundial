@@ -50,16 +50,33 @@
   padding: 2px 8px; border-radius: 10px;
 }
 
-/* Filas de implicados en el detalle */
-.cal-imp {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+/* Grupos del detalle: un equipo (quién lo tiene) o un jugador (quién lo eligió) */
+.cal-grupo {
   background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
-  padding: 12px 16px; margin-bottom: 8px;
+  margin-bottom: 10px; overflow: hidden;
 }
-.cal-imp-info { flex: 1; min-width: 0; }
+.cal-grupo-header {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid #e2e8f0; background: #f1f5f9;
+}
+.cal-grupo-body { padding: 6px 16px 10px; }
+.cal-grupo-vacio { padding: 12px 16px; font-size: 0.8rem; color: #94a3b8; }
+
 .cal-imp-nombre { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
 .cal-imp-meta { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
 .cal-imp-pts { font-size: 1.05rem; font-weight: 900; color: #003DA5; white-space: nowrap; }
+
+.cal-picker {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 7px 0; border-bottom: 1px solid #eef2f7;
+}
+.cal-grupo-body > div:last-child .cal-picker { border-bottom: none; }
+.cal-picker-nombre { font-size: 0.85rem; font-weight: 600; color: #374151; }
+
+.cal-supl-badge {
+  font-size: 0.62rem; font-weight: 700; background: #f1f5f9; color: #64748b;
+  padding: 2px 6px; border-radius: 6px; margin-left: 6px;
+}
 
 @media (max-width: 768px) {
   .cal-match { flex-wrap: wrap; gap: 8px; }

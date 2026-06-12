@@ -74,30 +74,54 @@ function DesgloseConceptos({ items }) {
   );
 }
 
-function FilaImplicado({ nombre, meta, badges, points, items, showPoints }) {
+// Fila de un participante dentro de un grupo (equipo o jugador)
+function FilaPicker({ nombre, badges, points, items, showPoints }) {
   const [open, setOpen] = useState(false);
   const expandible = showPoints && items && items.length > 0;
   return (
     <div>
       <div
-        className="cal-imp"
+        className="cal-picker"
         onClick={() => expandible && setOpen(o => !o)}
         style={expandible ? { cursor: 'pointer' } : undefined}
       >
-        <div className="cal-imp-info">
-          <div className="cal-imp-nombre">{nombre} {badges}</div>
-          <div className="cal-imp-meta">{meta}</div>
-        </div>
+        <div className="cal-picker-nombre">{nombre} {badges}</div>
         {showPoints && (
-          <div className="cal-imp-pts">
+          <div className="cal-imp-pts" style={{ fontSize: '0.9rem' }}>
             {fmtPts(points)} pts
-            {expandible && <span style={{ fontSize: '0.65rem', marginLeft: 6, color: '#94a3b8' }}>{open ? '▲' : '▼'}</span>}
+            {expandible && <span style={{ fontSize: '0.6rem', marginLeft: 6, color: '#94a3b8' }}>{open ? '▲' : '▼'}</span>}
           </div>
         )}
       </div>
-      {open && expandible && <div style={{ margin: '-4px 0 12px' }}><DesgloseConceptos items={items} /></div>}
+      {open && expandible && <div style={{ margin: '4px 0 8px' }}><DesgloseConceptos items={items} /></div>}
     </div>
   );
+}
+
+// Card de grupo: un equipo (con quién lo tiene) o un jugador (con quién lo eligió)
+function GrupoCard({ titulo, meta, vacio, children }) {
+  return (
+    <div className="cal-grupo">
+      <div className="cal-grupo-header">
+        <span className="cal-imp-nombre">{titulo}</span>
+        {meta && <span className="cal-imp-meta" style={{ marginTop: 0 }}>{meta}</span>}
+      </div>
+      {vacio ? <div className="cal-grupo-vacio">{vacio}</div> : <div className="cal-grupo-body">{children}</div>}
+    </div>
+  );
+}
+
+// Agrupa los jugadores implicados de un equipo: jugador → quiénes lo eligieron
+function agrupaJugadores(jugadores, teamId) {
+  const porJugador = new Map();
+  for (const j of jugadores.filter(x => x.team_id === teamId)) {
+    if (!porJugador.has(j.player_id)) {
+      porJugador.set(j.player_id, { player_id: j.player_id, player_name: j.player_name, position: j.position, pickers: [] });
+    }
+    porJugador.get(j.player_id).pickers.push(j);
+  }
+  // Los más elegidos primero
+  return [...porJugador.values()].sort((a, b) => b.pickers.length - a.pickers.length);
 }
 
 // ─── Detalle de un partido ────────────────────────────────────────────────────
@@ -150,37 +174,75 @@ function DetallePartido({ matchId, onBack }) {
         </div>
       </div>
 
+      {/* Selecciones agrupadas por equipo, local primero */}
       <div className="detalle-section">
-        <h3>Selecciones en juego ({selecciones.length})</h3>
-        {selecciones.length === 0 && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Ninguna porra tiene a estos equipos.</p>}
-        {selecciones.map((s, i) => (
-          <FilaImplicado
-            key={i}
-            nombre={s.participantName}
-            meta={`${s.team_name} · ${CAT_LABELS[s.category] ?? s.category}`}
-            badges={s.is_winner ? <span className="sel-winner-badge">⭐ GANADOR</span> : null}
-            points={s.points}
-            items={s.items}
-            showPoints={jugado}
-          />
-        ))}
+        <h3>Selecciones</h3>
+        {[
+          { id: match.home_team_id, name: match.home_team_name },
+          { id: match.away_team_id, name: match.away_team_name },
+        ].map(team => {
+          const pickers = selecciones.filter(s => s.team_id === team.id);
+          const cat = pickers[0]?.category;
+          return (
+            <GrupoCard
+              key={team.id}
+              titulo={team.name}
+              meta={[cat ? (CAT_LABELS[cat] ?? cat) : null, `${pickers.length} ${pickers.length === 1 ? 'porra lo tiene' : 'porras lo tienen'}`].filter(Boolean).join(' · ')}
+              vacio={pickers.length === 0 ? 'Nadie lo tiene en su porra.' : null}
+            >
+              {pickers.map((s, i) => (
+                <FilaPicker
+                  key={i}
+                  nombre={s.participantName}
+                  badges={s.is_winner ? <span className="sel-winner-badge">⭐ GANADOR</span> : null}
+                  points={s.points}
+                  items={s.items}
+                  showPoints={jugado}
+                />
+              ))}
+            </GrupoCard>
+          );
+        })}
       </div>
 
-      <div className="detalle-section">
-        <h3>Jugadores en juego ({jugadores.length})</h3>
-        {jugadores.length === 0 && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Ningún once tiene jugadores de estos equipos.</p>}
-        {jugadores.map((j, i) => (
-          <FilaImplicado
-            key={i}
-            nombre={j.player_name}
-            meta={`${POS_LABELS[j.position] ?? j.position} · ${j.team_name} · porra de ${j.participantName}${j.role === 'suplente' ? ' · Suplente' : ''}`}
-            badges={j.is_captain ? <span className="captain-badge">⭐ CAP</span> : null}
-            points={j.points}
-            items={j.items}
-            showPoints={jugado}
-          />
-        ))}
-      </div>
+      {/* Jugadores agrupados por equipo y por jugador, local primero */}
+      {[
+        { id: match.home_team_id, name: match.home_team_name },
+        { id: match.away_team_id, name: match.away_team_name },
+      ].map(team => {
+        const grupos = agrupaJugadores(jugadores, team.id);
+        return (
+          <div className="detalle-section" key={team.id}>
+            <h3>Jugadores de {team.name} ({grupos.length})</h3>
+            {grupos.length === 0 && (
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Ningún once tiene jugadores de este equipo.</p>
+            )}
+            {grupos.map(g => (
+              <GrupoCard
+                key={g.player_id}
+                titulo={g.player_name}
+                meta={`${POS_LABELS[g.position] ?? g.position} · elegido por ${g.pickers.length}`}
+              >
+                {g.pickers.map((p, i) => (
+                  <FilaPicker
+                    key={i}
+                    nombre={p.participantName}
+                    badges={
+                      <>
+                        {p.is_captain ? <span className="captain-badge">⭐ CAP</span> : null}
+                        {p.role === 'suplente' ? <span className="cal-supl-badge">Suplente</span> : null}
+                      </>
+                    }
+                    points={p.points}
+                    items={p.items}
+                    showPoints={jugado}
+                  />
+                ))}
+              </GrupoCard>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -218,11 +218,14 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
 
 ### Política de puntuación (¡importante!)
 
-- El **marcador** de un partido finalizado puntúa automáticamente tras el scrape + recálculo
+- **Sin aprobación manual (desde jun-2026):** en cuanto un partido pasa a `finished` —por scraping
+  o marcándolo el admin— sus eventos se confirman y puntúan automáticamente. El scheduler confirma
+  en cada tick cualquier evento sin confirmar de partidos finalizados, y el `PUT /api/admin/matches/:id`
+  con `status='finished'` confirma + recalcula. Corregir un evento (`POST /api/admin/events`) también
+  recalcula al guardar. El botón "Confirmar partido" se eliminó de la UI (el endpoint
+  `/events/:matchId/confirm` sigue existiendo por compatibilidad). `FIFA_AUTO_CONFIRM` ya no se usa.
+- El **marcador** de un partido finalizado puntúa con el recálculo
   (las victorias/derrotas/empates salen de `matches`, es un hecho objetivo → clasificación en tiempo real).
-- Los **eventos de jugadores** entran como borrador (`source='fifa_draft'`, `is_confirmed=0`) y solo
-  puntúan cuando el admin pulsa "Confirmar partido" (que ahora también dispara el recálculo).
-  `FIFA_AUTO_CONFIRM=true` salta esa revisión (no recomendado).
 - En **eliminatorias** se derivan `advanced`/`eliminated`/`winner` automáticamente al acabar el partido,
   sin pisar lo que el admin haya fijado a mano. La **fase de grupos queda manual** (depende de
   clasificaciones y mejores terceros). El partido por el **tercer puesto se omite** (la porra no lo puntúa).
@@ -271,9 +274,9 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
   scheduler lo pollea **cada tick (60 s)**: minuto + marcador provisional + eventos nuevos como
   `is_live=1, is_confirmed=0`. Cuando el endpoint live detecta el final, el calendario (fuente
   autoritativa del resultado/penaltis) se refresca en el mismo tick y el scrape final
-  (`syncMatchEvents`) sustituye los provisionales (`clearLiveFlags`) quedando como borradores
-  normales a la espera del admin. El paso `pending→live` lo hace el refresco rápido del
-  calendario (10 min), activado en cuanto pasa la hora de inicio.
+  (`syncMatchEvents`) sustituye los provisionales (`clearLiveFlags`); el scheduler los confirma
+  automáticamente en el mismo tick (sin aprobación manual). El paso `pending→live` lo hace el
+  refresco rápido del calendario (10 min), activado en cuanto pasa la hora de inicio.
 - **Motor intacto — overlay en vivo** (`scoring/live.ts`, funciones puras): a los partidos `live`
   se les sintetiza una copia `finished` con el marcador provisional y sus eventos `is_live` se
   tratan como confirmados; tras el motor, los ítems de esos partidos se marcan `isLive` y se
@@ -302,6 +305,20 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
   partido está en vivo/finalizado, muestra además los puntos de ESTE partido por selección y
   jugador con el desglose por conceptos y la etiqueta "Provisional (en vivo)" / "Definitivo".
   Los puntos salen del `breakdown_json` de `porra_scores` filtrado por `matchId` (sin recálculo).
+
+### Subsecciones de Clasificación (junio 2026)
+
+La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres vistas:
+- **🏆 Clasificación** — el ranking de siempre (sin cambios).
+- **⚖️ Comparador de porras** (`ComparadorPorras.js/.css`) — hasta 4 porras lado a lado:
+  selecciones por categoría (con ⭐ Ganador) y once por posición (⭐CAP / supl.). Las
+  coincidencias entre las porras comparadas se resaltan con 🤝 y fondo ámbar. Datos de los
+  endpoints públicos existentes (`/api/clasificacion` + `/api/porras/:id`). Scroll horizontal en móvil.
+- **📊 Resumen de elegidos** (`ResumenElegidos.js/.css`) — todas las selecciones y los jugadores
+  elegidos ordenados por popularidad, con acordeón por equipo/jugador mostrando quiénes los
+  eligieron (⭐ GANADOR / ⭐CAP / supl.) y barra de popularidad relativa. Se alimenta del nuevo
+  endpoint público `GET /api/resumen-elegidos` (agrega `PorrasRepo.findAllFull()` —solo aprobadas—
+  en servidor, una petición).
 
 ### Variables de entorno nuevas (ver `.env.example`)
 

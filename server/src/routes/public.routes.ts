@@ -214,6 +214,58 @@ router.get('/calendario/:matchId', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/**
+ * GET /api/resumen-elegidos — agregación pública sobre las porras APROBADAS:
+ * cada selección/jugador con cuántas porras lo eligieron y quiénes
+ * (con Ganador / capitán / suplente). Ordenado de más a menos elegido.
+ */
+router.get('/resumen-elegidos', async (_req, res, next) => {
+  try {
+    const [teams, players, porras] = await Promise.all([
+      TeamsRepo.findAll(), PlayersRepo.findAll(), PorrasRepo.findAllFull(),
+    ]);
+
+    const teamPickers = new Map<string, Array<{ name: string; is_winner: boolean }>>();
+    const playerPickers = new Map<string, Array<{ name: string; role: string; is_captain: boolean }>>();
+    for (const pf of porras) {
+      for (const s of pf.selections) {
+        if (!teamPickers.has(s.team_id)) teamPickers.set(s.team_id, []);
+        teamPickers.get(s.team_id)!.push({ name: pf.participant.name, is_winner: s.is_winner === 1 });
+      }
+      for (const l of pf.lineup) {
+        if (!playerPickers.has(l.player_id)) playerPickers.set(l.player_id, []);
+        playerPickers.get(l.player_id)!.push({ name: pf.participant.name, role: l.role, is_captain: l.is_captain === 1 });
+      }
+    }
+
+    const teamsOut = teams
+      .map(t => ({
+        team_id: t.id, team_name: t.name, category: t.category,
+        count: (teamPickers.get(t.id) ?? []).length,
+        pickers: teamPickers.get(t.id) ?? [],
+      }))
+      .sort((a, b) => b.count - a.count || a.team_name.localeCompare(b.team_name, 'es'));
+
+    const playerById = new Map(players.map(p => [p.id, p]));
+    const teamById = new Map(teams.map(t => [t.id, t]));
+    const playersOut = [...playerPickers.entries()]
+      .map(([pid, pickers]) => {
+        const p = playerById.get(pid);
+        return {
+          player_id: pid,
+          player_name: p?.name ?? pid,
+          position: p?.position ?? '',
+          team_name: p ? (teamById.get(p.team_id)?.name ?? '') : '',
+          count: pickers.length,
+          pickers,
+        };
+      })
+      .sort((a, b) => b.count - a.count || a.player_name.localeCompare(b.player_name, 'es'));
+
+    res.json({ totalPorras: porras.length, teams: teamsOut, players: playersOut });
+  } catch (e) { next(e); }
+});
+
 /** GET /api/teams */
 router.get('/teams', async (_req, res, next) => {
   try { res.json(await TeamsRepo.findAll()); } catch (e) { next(e); }

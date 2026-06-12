@@ -1,0 +1,36 @@
+/* Resumen de elegidos — mismo lenguaje visual que Clasificación.
+   Solo clases nuevas con prefijo res-. */
+
+.res-card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  margin-bottom: 8px; overflow: hidden;
+}
+.res-card-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; cursor: pointer;
+}
+.res-card-header:hover { background: #f0f4fa; }
+
+.res-nombre { font-size: 0.9rem; font-weight: 700; color: #1e293b; flex: 1; min-width: 0; }
+.res-meta { font-size: 0.72rem; color: #94a3b8; }
+.res-count {
+  font-size: 0.8rem; font-weight: 900; color: #003DA5; white-space: nowrap;
+}
+.res-chevron { font-size: 0.7rem; color: #94a3b8; }
+
+/* Barra de popularidad relativa */
+.res-bar { height: 4px; background: #eef2f7; }
+.res-bar > div { height: 100%; background: linear-gradient(90deg, #003DA5, #0066ff); }
+
+.res-body {
+  padding: 10px 16px 14px; border-top: 1px solid #eef2f7;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.res-chip {
+  font-size: 0.78rem; font-weight: 600; color: #1e293b;
+  background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;
+  padding: 3px 10px;
+}
+.res-chip.ganador { background: #fef9c3; border-color: #fbbf24; color: #92400e; }
+
+.res-vacio { color: #94a3b8; font-size: 0.8rem; padding: 4px 0 12px; }

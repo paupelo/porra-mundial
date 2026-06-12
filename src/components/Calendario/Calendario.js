@@ -298,7 +298,16 @@ export default function Calendario() {
     <div className="clasificacion-page">
       <div className="clas-hero">
         <h1>Calendario</h1>
-        <p>Todos los partidos del Mundial. Pulsa uno para ver quién se juega puntos en él.</p>
+        <p>
+          Todos los partidos del Mundial en tu hora local
+          {(() => {
+            try {
+              const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+              return tz ? ` (${tz.replace(/_/g, ' ')})` : '';
+            } catch { return ''; }
+          })()}
+          . Pulsa uno para ver quién se juega puntos en él.
+        </p>
       </div>
 
       <div className="clas-content">

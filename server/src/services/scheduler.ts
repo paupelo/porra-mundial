@@ -20,12 +20,11 @@
 
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
 import { EventsRepo } from '../repositories/events.repo';
-import { syncCalendar, syncMatchEvents, CalendarSyncSummary } from './fifa/sync';
+import { syncCalendar, syncLiveMatch, syncMatchEvents, CalendarSyncSummary } from './fifa/sync';
 import { recalcularYGuardar } from './recalc';
 import { MatchRecord } from '../types';
 
 const TICK_MS = 60_000;
-const LIVE_RETRY_MIN = 10;                 // reintento para partidos en juego/prórroga
 const FAST_CALENDAR_MIN = 10;              // refresco con partidos "calientes"
 const KNOCKOUT_PHASES = ['dieciseisavos', 'octavos', 'cuartos', 'semifinales', 'final'];
 
@@ -71,9 +70,11 @@ function isDue(match: MatchRecord, now: Date): boolean {
   return now.getTime() >= start + durationMin * 60_000;
 }
 
-function minutesSinceScrape(match: MatchRecord, now: Date): number {
-  if (!match.last_scraped_at) return Infinity;
-  return (now.getTime() - new Date(match.last_scraped_at).getTime()) / 60_000;
+/** ¿Ya empezó (hora de inicio pasada) sin haber terminado? */
+function kickoffPassed(match: MatchRecord, now: Date): boolean {
+  if (!match.match_date) return false;
+  const start = new Date(match.match_date).getTime();
+  return Number.isFinite(start) && now.getTime() >= start;
 }
 
 /** Resultados de fase automáticos para eliminatorias (sin pisar al admin). */
@@ -120,9 +121,10 @@ async function tick(): Promise<void> {
     const fifaMatches = matches.filter(m => m.fifa_match_id);
 
     // ¿Hay partidos que exigen refresco rápido del calendario?
+    // (en juego, o programados que ya deberían haber empezado/terminado)
     const hot = fifaMatches.some(m =>
       m.status === 'live' ||
-      (m.status === 'pending' && isDue(m, now)),
+      (m.status === 'pending' && (kickoffPassed(m, now) || isDue(m, now))),
     );
     const refreshMin = hot ? FAST_CALENDAR_MIN : envInt('FIFA_CALENDAR_REFRESH_HOURS', 6) * 60;
     let didWork = false;
@@ -137,18 +139,31 @@ async function tick(): Promise<void> {
       matches = await MatchesRepo.findAll();
     }
 
-    // Partidos en juego: reintento cada 10 min (cubre prórroga y penaltis)
-    for (const m of matches.filter(x => x.fifa_match_id && x.status === 'live')) {
-      if (minutesSinceScrape(m, now) >= LIVE_RETRY_MIN) {
-        await MatchesRepo.update(m.id, { last_scraped_at: now.toISOString() });
-        // El marcador/estado llega con el próximo refresco rápido del calendario
-      }
+    // Partidos EN JUEGO: poll cada tick (60s) → minuto, marcador provisional y
+    // eventos en vivo (is_live=1). Cubre también prórroga y penaltis.
+    let liveFinished = false;
+    for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'live')) {
+      const s = await syncLiveMatch(m);
+      didWork = true; // recalcular cada tick mientras haya partidos en vivo
+      log(`en vivo ${m.id}: min ${s.minute ?? '?'} · ${s.homeScore ?? '-'}–${s.awayScore ?? '-'} · ${s.eventsSaved} eventos`);
+      if (s.finishedDetected) liveFinished = true;
+    }
+    // Si el endpoint live ya da el partido por terminado, el calendario (que es
+    // la fuente autoritativa del resultado/penaltis) se refresca en este mismo tick
+    if (liveFinished) {
+      lastCalendarSyncMs = now.getTime();
+      const summary = await syncCalendar();
+      status.lastCalendarSyncAt = new Date().toISOString();
+      status.lastCalendarSummary = summary;
+      log('partido terminado detectado en vivo → calendario refrescado');
+      matches = await MatchesRepo.findAll();
     }
 
-    // Partidos finalizados sin eventos scrapeados → descargar timeline
+    // Partidos finalizados sin scrape final (sin eventos, o solo con
+    // provisionales del modo en vivo) → descargar timeline definitivo
     for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'finished')) {
       const counts = await EventsRepo.countByMatch(m.id);
-      if (counts.total === 0) {
+      if (counts.total === 0 || counts.live > 0) {
         log(`scrapeando eventos de ${m.id} (FIFA ${m.fifa_match_id})…`);
         const summary = await syncMatchEvents(m);
         log(`eventos de ${m.id}: ${summary.saved} borradores guardados, ${summary.unreconciled.length} sin conciliar`);

@@ -28,6 +28,13 @@ export async function runMigrations(): Promise<void> {
     "ALTER TABLE porras ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'",
     'ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_email TEXT',
     'ALTER TABLE porras ADD COLUMN IF NOT EXISTS submitted_data_json TEXT',
+    // Estado en vivo (junio 2026): minuto/marcador provisional + flags is_live
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS minute INTEGER',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS live_home_score INTEGER',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS live_away_score INTEGER',
+    'ALTER TABLE match_player_events ADD COLUMN IF NOT EXISTS is_live INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE team_points_log ADD COLUMN IF NOT EXISTS is_live INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE player_points_log ADD COLUMN IF NOT EXISTS is_live INTEGER NOT NULL DEFAULT 0',
     // Ampliar el CHECK de source para admitir borradores del scraper de FIFA.
     // El par DROP+ADD es idempotente ejecutado en este orden.
     'ALTER TABLE match_player_events DROP CONSTRAINT IF EXISTS match_player_events_source_check',

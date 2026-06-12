@@ -55,6 +55,10 @@ export interface MatchRecord {
   group_name?: string | null;
   venue?: string | null;
   last_scraped_at?: string | null;
+  /** Estado en vivo (solo con status='live'); el marcador FINAL va en home/away_score */
+  minute?: number | null;
+  live_home_score?: number | null;
+  live_away_score?: number | null;
 }
 
 export interface MatchPlayerEventRecord {
@@ -77,6 +81,8 @@ export interface MatchPlayerEventRecord {
   is_improvised_goalkeeper: 0 | 1;
   source: EventSource;
   is_confirmed: 0 | 1;
+  /** 1 = evento scrapeado en vivo: puntúa provisionalmente mientras el partido está live */
+  is_live?: 0 | 1;
 }
 
 export interface TeamPhaseResultRecord {
@@ -158,6 +164,8 @@ export interface ScoreLineItem {
   /** ×2 si capitán, ×0.5 si suplente activo, ×1 si no aplica */
   roleMultiplier: number;
   finalPoints: number;
+  /** true = puntos provisionales de un partido en vivo (pueden cambiar) */
+  isLive?: boolean;
 }
 
 export interface TeamScoreResult {

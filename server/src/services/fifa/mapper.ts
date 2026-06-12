@@ -343,6 +343,26 @@ export function aggregateTimeline(
   return { tallies, unmappedTypes };
 }
 
+// ─── Estado en vivo de un partido ────────────────────────────────────────────
+
+export interface LiveMatchStatus {
+  status: MatchStatus;
+  minute: number | null;
+  homeScore: number | null;
+  awayScore: number | null;
+}
+
+/** Marcador y minuto actuales desde el endpoint live (parseo defensivo). */
+export function extractLiveStatus(liveData: unknown): LiveMatchStatus {
+  const d = liveData as AnyObj;
+  return {
+    status: mapStatus(d?.MatchStatus),
+    minute: parseMinute(d?.MatchTime) ?? parseMinute(d?.MatchMinute) ?? null,
+    homeScore: intOrNull(d?.HomeTeam?.Score) ?? intOrNull(d?.HomeTeamScore),
+    awayScore: intOrNull(d?.AwayTeam?.Score) ?? intOrNull(d?.AwayTeamScore),
+  };
+}
+
 /** Alineaciones desde el endpoint live: nombres + titular/suplente. */
 export function extractLineup(liveData: unknown): LineupEntry[] {
   const data = liveData as AnyObj;

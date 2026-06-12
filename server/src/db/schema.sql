@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS matches (
   group_name           TEXT,
   venue                TEXT,
   last_scraped_at      TIMESTAMPTZ,
+  minute               INTEGER,
+  live_home_score      INTEGER,
+  live_away_score      INTEGER,
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS match_player_events (
   is_improvised_goalkeeper  INTEGER NOT NULL DEFAULT 0,
   source                    TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','besoccer_draft','fifa_draft')),
   is_confirmed              INTEGER NOT NULL DEFAULT 0,
+  is_live                   INTEGER NOT NULL DEFAULT 0,
   created_at                TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, player_id)
 );
@@ -143,6 +147,7 @@ CREATE TABLE IF NOT EXISTS team_points_log (
   points_raw       DOUBLE PRECISION NOT NULL DEFAULT 0,
   multiplier       DOUBLE PRECISION NOT NULL DEFAULT 1,
   points_total     DOUBLE PRECISION NOT NULL DEFAULT 0,
+  is_live          INTEGER NOT NULL DEFAULT 0,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -160,6 +165,7 @@ CREATE TABLE IF NOT EXISTS player_points_log (
   points_raw          DOUBLE PRECISION NOT NULL DEFAULT 0,
   multiplier          DOUBLE PRECISION NOT NULL DEFAULT 1,
   points_total        DOUBLE PRECISION NOT NULL DEFAULT 0,
+  is_live             INTEGER NOT NULL DEFAULT 0,
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 

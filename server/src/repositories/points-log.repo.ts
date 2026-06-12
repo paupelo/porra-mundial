@@ -13,6 +13,7 @@ export interface TeamPointsLogRow {
   points_raw: number;
   multiplier: number;
   points_total: number;
+  is_live: 0 | 1;
 }
 
 export interface PlayerPointsLogRow {
@@ -28,6 +29,7 @@ export interface PlayerPointsLogRow {
   points_raw: number;
   multiplier: number;
   points_total: number;
+  is_live: 0 | 1;
 }
 
 /**
@@ -45,19 +47,19 @@ export const PointsLogRepo = {
       for (const r of teamRows) {
         await client.query(
           `INSERT INTO team_points_log(id,porra_id,team_id,team_name,match_id,category,is_ganador,
-             points_breakdown,points_raw,multiplier,points_total)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+             points_breakdown,points_raw,multiplier,points_total,is_live)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [uuid(), r.porra_id, r.team_id, r.team_name, r.match_id, r.category, r.is_ganador,
-            JSON.stringify(r.points_breakdown), r.points_raw, r.multiplier, r.points_total]);
+            JSON.stringify(r.points_breakdown), r.points_raw, r.multiplier, r.points_total, r.is_live]);
       }
       for (const r of playerRows) {
         await client.query(
           `INSERT INTO player_points_log(id,porra_id,player_id,player_name,match_id,position,
-             is_captain,is_substitute,substitute_promoted,points_breakdown,points_raw,multiplier,points_total)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+             is_captain,is_substitute,substitute_promoted,points_breakdown,points_raw,multiplier,points_total,is_live)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [uuid(), r.porra_id, r.player_id, r.player_name, r.match_id, r.position,
             r.is_captain, r.is_substitute, r.substitute_promoted,
-            JSON.stringify(r.points_breakdown), r.points_raw, r.multiplier, r.points_total]);
+            JSON.stringify(r.points_breakdown), r.points_raw, r.multiplier, r.points_total, r.is_live]);
       }
       await client.query('COMMIT');
     } catch (e) {

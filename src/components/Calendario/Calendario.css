@@ -1,0 +1,66 @@
+/* Calendario — mismo lenguaje visual que Clasificación (paleta #003DA5,
+   cards #f8fafc, bordes #e2e8f0). Solo estilos nuevos con prefijo cal-. */
+
+.cal-fecha {
+  font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+  color: #94a3b8; margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;
+}
+.cal-fecha:first-child { margin-top: 0; }
+
+.cal-match {
+  display: flex; align-items: center; gap: 14px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 8px; cursor: pointer; transition: background 0.15s;
+}
+.cal-match:hover { background: #f0f4fa; }
+.cal-match.is-live { border-color: #fca5a5; background: #fef2f2; }
+
+.cal-match-equipos { flex: 1; min-width: 0; }
+.cal-match-nombres { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+.cal-match-meta { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+
+.cal-match-marcador {
+  font-size: 1.15rem; font-weight: 900; color: #003DA5; white-space: nowrap;
+}
+.cal-match-marcador .cal-minuto { font-size: 0.72rem; color: #dc2626; font-weight: 700; margin-left: 6px; }
+.cal-match-hora { font-size: 0.9rem; font-weight: 700; color: #64748b; white-space: nowrap; }
+
+.cal-badge {
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 12px; white-space: nowrap;
+}
+.cal-badge-proximo  { background: #f1f5f9; color: #64748b; }
+.cal-badge-fin      { background: rgba(22,163,74,0.1); color: #15803d; }
+.cal-badge-live     { background: #dc2626; color: #fff; animation: cal-pulse 1.6s ease-in-out infinite; }
+
+@keyframes cal-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Etiqueta provisional/definitivo en detalle */
+.cal-tag-provisional {
+  font-size: 0.65rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
+  padding: 2px 8px; border-radius: 10px;
+}
+.cal-tag-definitivo {
+  font-size: 0.65rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  background: rgba(22,163,74,0.1); color: #15803d;
+  padding: 2px 8px; border-radius: 10px;
+}
+
+/* Filas de implicados en el detalle */
+.cal-imp {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 8px;
+}
+.cal-imp-info { flex: 1; min-width: 0; }
+.cal-imp-nombre { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
+.cal-imp-meta { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+.cal-imp-pts { font-size: 1.05rem; font-weight: 900; color: #003DA5; white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .cal-match { flex-wrap: wrap; gap: 8px; }
+}

@@ -13,9 +13,11 @@ import { fetchCalendar, fetchLiveMatch, fetchSeasons, fetchTimeline } from './cl
 import {
   aggregateTimeline,
   extractLineup,
+  extractLiveStatus,
   localized,
   mapCalendarMatch,
-  FifaMatchDraft,
+  LineupEntry,
+  PlayerTally,
 } from './mapper';
 import { suggestPlayer, suggestTeam } from '../besoccer/reconciler';
 import { MatchesRepo } from '../../repositories/matches.repo';
@@ -167,7 +169,100 @@ export async function syncCalendar(): Promise<CalendarSyncSummary> {
   return summary;
 }
 
-// ─── Sincronización de eventos de un partido ─────────────────────────────────
+// ─── Conciliación y guardado de tallies (compartido por final y en vivo) ────
+
+interface SaveTalliesResult {
+  saved: number;
+  skippedConfirmed: number;
+  unreconciled: Array<{ fifaPlayerId: string; name: string }>;
+}
+
+async function reconcileAndSaveTallies(
+  match: MatchRecord,
+  tallies: Map<string, PlayerTally>,
+  lineup: LineupEntry[],
+  liveData: unknown,
+  isLive: boolean,
+): Promise<SaveTalliesResult> {
+  const result: SaveTalliesResult = { saved: 0, skippedConfirmed: 0, unreconciled: [] };
+
+  // FIFA IdTeam → nuestro team_id, vía las alineaciones del endpoint live
+  const fifaTeamToOurs = new Map<string, string>();
+  if (liveData) {
+    const data = liveData as Record<string, any>;
+    const homeFifaId = data?.HomeTeam?.IdTeam ? String(data.HomeTeam.IdTeam) : null;
+    const awayFifaId = data?.AwayTeam?.IdTeam ? String(data.AwayTeam.IdTeam) : null;
+    if (homeFifaId) fifaTeamToOurs.set(homeFifaId, match.home_team_id);
+    if (awayFifaId) fifaTeamToOurs.set(awayFifaId, match.away_team_id);
+  }
+
+  const nameByFifaId = new Map(lineup.map(l => [l.fifaPlayerId, l.name]));
+  const allPlayers = await PlayersRepo.findAll();
+  const homePlayers = allPlayers.filter(p => p.team_id === match.home_team_id);
+  const awayPlayers = allPlayers.filter(p => p.team_id === match.away_team_id);
+
+  const existingEvents = await EventsRepo.findByMatch(match.id);
+  const confirmedPlayerIds = new Set(existingEvents.filter(e => e.is_confirmed === 1).map(e => e.player_id));
+
+  for (const tally of tallies.values()) {
+    const hasData = tally.minutes_played > 0 || tally.goals_open_play || tally.goals_penalty_play ||
+      tally.goals_penalty_shootout || tally.assists || tally.penalty_saved_play ||
+      tally.penalty_saved_shootout || tally.red_card || tally.penalty_missed_play ||
+      tally.penalty_missed_shootout || tally.own_goals;
+    if (!hasData) continue;
+
+    const name = nameByFifaId.get(tally.fifaPlayerId) ?? '';
+    const ourTeamId = tally.fifaTeamId ? fifaTeamToOurs.get(tally.fifaTeamId) ?? null : null;
+    const candidates = ourTeamId === match.home_team_id ? homePlayers
+      : ourTeamId === match.away_team_id ? awayPlayers
+      : [...homePlayers, ...awayPlayers];
+
+    if (!name) {
+      result.unreconciled.push({ fifaPlayerId: tally.fifaPlayerId, name: '(sin nombre)' });
+      continue;
+    }
+    const [best] = suggestPlayer(name, candidates);
+    if (!best || best.score < PLAYER_MATCH_THRESHOLD) {
+      result.unreconciled.push({ fifaPlayerId: tally.fifaPlayerId, name });
+      continue;
+    }
+    if (confirmedPlayerIds.has(best.item.id)) {
+      result.skippedConfirmed++;
+      continue; // el admin ya validó a este jugador en este partido
+    }
+
+    await EventsRepo.upsert({
+      match_id: match.id,
+      player_id: best.item.id,
+      team_id: best.item.team_id,
+      minutes_played: tally.minutes_played,
+      goals_open_play: tally.goals_open_play,
+      goals_penalty_play: tally.goals_penalty_play,
+      goals_penalty_shootout: tally.goals_penalty_shootout,
+      assists: tally.assists,
+      penalty_saved_play: tally.penalty_saved_play,
+      penalty_saved_shootout: tally.penalty_saved_shootout,
+      red_card: tally.red_card,
+      penalty_conceded: tally.penalty_conceded,
+      penalty_missed_play: tally.penalty_missed_play,
+      penalty_missed_shootout: tally.penalty_missed_shootout,
+      own_goals: tally.own_goals,
+      is_improvised_goalkeeper: 0,
+      source: 'fifa_draft',
+      is_confirmed: 0,
+      is_live: isLive ? 1 : 0,
+    });
+    result.saved++;
+  }
+
+  if (result.unreconciled.length > 0) {
+    console.warn(`[fifa] ${result.unreconciled.length} jugadores sin conciliar en ${match.fifa_match_id}:`,
+      result.unreconciled.map(u => u.name).join(', '));
+  }
+  return result;
+}
+
+// ─── Sincronización de eventos de un partido FINALIZADO ─────────────────────
 
 export interface MatchEventsSyncSummary {
   matchId: string;
@@ -204,78 +299,73 @@ export async function syncMatchEvents(match: MatchRecord): Promise<MatchEventsSy
       unmappedTypes.map(u => `${u.type}:"${u.description}"`).slice(0, 10).join(' | '));
   }
 
-  // FIFA IdTeam → nuestro team_id, vía las alineaciones del endpoint live
-  const fifaTeamToOurs = new Map<string, string>();
-  if (liveData) {
-    const data = liveData as Record<string, any>;
-    const homeFifaId = data?.HomeTeam?.IdTeam ? String(data.HomeTeam.IdTeam) : null;
-    const awayFifaId = data?.AwayTeam?.IdTeam ? String(data.AwayTeam.IdTeam) : null;
-    if (homeFifaId) fifaTeamToOurs.set(homeFifaId, match.home_team_id);
-    if (awayFifaId) fifaTeamToOurs.set(awayFifaId, match.away_team_id);
-  }
+  const saveResult = await reconcileAndSaveTallies(match, tallies, lineup, liveData, false);
+  summary.saved = saveResult.saved;
+  summary.skippedConfirmed = saveResult.skippedConfirmed;
+  summary.unreconciled = saveResult.unreconciled;
 
-  const nameByFifaId = new Map(lineup.map(l => [l.fifaPlayerId, l.name]));
-  const allPlayers = await PlayersRepo.findAll();
-  const homePlayers = allPlayers.filter(p => p.team_id === match.home_team_id);
-  const awayPlayers = allPlayers.filter(p => p.team_id === match.away_team_id);
-
-  const existingEvents = await EventsRepo.findByMatch(match.id);
-  const confirmedPlayerIds = new Set(existingEvents.filter(e => e.is_confirmed === 1).map(e => e.player_id));
-
-  for (const tally of tallies.values()) {
-    const hasData = tally.minutes_played > 0 || tally.goals_open_play || tally.goals_penalty_play ||
-      tally.goals_penalty_shootout || tally.assists || tally.penalty_saved_play ||
-      tally.penalty_saved_shootout || tally.red_card || tally.penalty_missed_play ||
-      tally.penalty_missed_shootout || tally.own_goals;
-    if (!hasData) continue;
-
-    const name = nameByFifaId.get(tally.fifaPlayerId) ?? '';
-    const ourTeamId = tally.fifaTeamId ? fifaTeamToOurs.get(tally.fifaTeamId) ?? null : null;
-    const candidates = ourTeamId === match.home_team_id ? homePlayers
-      : ourTeamId === match.away_team_id ? awayPlayers
-      : [...homePlayers, ...awayPlayers];
-
-    if (!name) {
-      summary.unreconciled.push({ fifaPlayerId: tally.fifaPlayerId, name: '(sin nombre)' });
-      continue;
-    }
-    const [best] = suggestPlayer(name, candidates);
-    if (!best || best.score < PLAYER_MATCH_THRESHOLD) {
-      summary.unreconciled.push({ fifaPlayerId: tally.fifaPlayerId, name });
-      continue;
-    }
-    if (confirmedPlayerIds.has(best.item.id)) {
-      summary.skippedConfirmed++;
-      continue; // el admin ya validó a este jugador en este partido
-    }
-
-    await EventsRepo.upsert({
-      match_id: match.id,
-      player_id: best.item.id,
-      team_id: best.item.team_id,
-      minutes_played: tally.minutes_played,
-      goals_open_play: tally.goals_open_play,
-      goals_penalty_play: tally.goals_penalty_play,
-      goals_penalty_shootout: tally.goals_penalty_shootout,
-      assists: tally.assists,
-      penalty_saved_play: tally.penalty_saved_play,
-      penalty_saved_shootout: tally.penalty_saved_shootout,
-      red_card: tally.red_card,
-      penalty_conceded: tally.penalty_conceded,
-      penalty_missed_play: tally.penalty_missed_play,
-      penalty_missed_shootout: tally.penalty_missed_shootout,
-      own_goals: tally.own_goals,
-      is_improvised_goalkeeper: 0,
-      source: 'fifa_draft',
-      is_confirmed: 0,
-    });
-    summary.saved++;
-  }
-
-  if (summary.unreconciled.length > 0) {
-    console.warn(`[fifa] ${summary.unreconciled.length} jugadores sin conciliar en ${match.fifa_match_id}:`,
-      summary.unreconciled.map(u => u.name).join(', '));
-  }
+  // El scrape final cierra el modo en vivo: los borradores dejan de puntuar
+  // provisionalmente y quedan a la espera de la confirmación del admin.
+  await EventsRepo.clearLiveFlags(match.id);
   await MatchesRepo.update(match.id, { last_scraped_at: new Date().toISOString() });
+  return summary;
+}
+
+// ─── Sincronización EN VIVO de un partido ────────────────────────────────────
+
+export interface LiveSyncSummary {
+  matchId: string;
+  minute: number | null;
+  homeScore: number | null;
+  awayScore: number | null;
+  eventsSaved: number;
+  /** El endpoint live ya marca el partido como finalizado */
+  finishedDetected: boolean;
+}
+
+/**
+ * Poll de un partido en juego: marcador y minuto actuales + eventos nuevos
+ * como borradores provisionales (is_live=1, is_confirmed=0).
+ */
+export async function syncLiveMatch(match: MatchRecord): Promise<LiveSyncSummary> {
+  const summary: LiveSyncSummary = {
+    matchId: match.id, minute: null, homeScore: null, awayScore: null,
+    eventsSaved: 0, finishedDetected: false,
+  };
+  const seasonId = await resolveSeasonId();
+  if (!seasonId || !match.fifa_match_id || !match.fifa_stage_id) return summary;
+
+  const [liveRes, timelineRes] = await Promise.allSettled([
+    fetchLiveMatch(seasonId, match.fifa_stage_id, match.fifa_match_id),
+    fetchTimeline(seasonId, match.fifa_stage_id, match.fifa_match_id),
+  ]);
+  if (liveRes.status === 'rejected') {
+    console.warn(`[fifa] live no disponible para ${match.fifa_match_id}: ${liveRes.reason}`);
+    return summary;
+  }
+
+  const liveData = liveRes.value;
+  const ls = extractLiveStatus(liveData);
+  summary.minute = ls.minute;
+  summary.homeScore = ls.homeScore;
+  summary.awayScore = ls.awayScore;
+  summary.finishedDetected = ls.status === 'finished';
+
+  await MatchesRepo.update(match.id, {
+    minute: ls.minute,
+    live_home_score: ls.homeScore,
+    live_away_score: ls.awayScore,
+    last_scraped_at: new Date().toISOString(),
+  });
+
+  if (timelineRes.status === 'fulfilled') {
+    const lineup = extractLineup(liveData);
+    // Minutos provisionales: lo jugado hasta ahora (la cifra real llega con el scrape final)
+    const durationMin = ls.minute ?? 90;
+    const { tallies } = aggregateTimeline(timelineRes.value.Event ?? [], lineup, durationMin);
+    const saveResult = await reconcileAndSaveTallies(match, tallies, lineup, liveData, true);
+    summary.eventsSaved = saveResult.saved;
+  }
+
   return summary;
 }

@@ -52,6 +52,7 @@ porra-mundial/
 │   └── components/
 │       ├── ArmaTuPorra/              Wizard de creación de porra (UI completa, SIN backend aún)
 │       ├── Clasificacion/            Ranking público + desglose por participante
+│       ├── Calendario/               Partidos por fecha + detalle con implicados y puntos en vivo
 │       ├── Normas/                   Página de reglas (estática)
 │       └── Admin/                   Panel de administración protegido por JWT
 │
@@ -72,6 +73,7 @@ porra-mundial/
 │   │   │   │   └── sync.ts           Orquestador: upsert de partidos + borradores de eventos
 │   │   │   ├── scoring/             ★ NÚCLEO DEL SISTEMA (función pura + 115 tests)
 │   │   │   │   ├── engine.ts         Orquestador: eventos + porras → clasificación
+│   │   │   │   ├── live.ts           Overlay EN VIVO: provisionales sin tocar el motor (+ tests)
 │   │   │   │   ├── selecciones.ts    Puntuación de equipos
 │   │   │   │   ├── jugadores.ts      Puntuación de jugadores
 │   │   │   │   ├── multipliers.ts    Tabla de multiplicadores por fase
@@ -258,6 +260,48 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
 - **Admin → "Resultados y eventos"** (`AdminResultados.js`, sección nueva): estado del scheduler,
   partidos con badge ⚠️ PENDIENTE, eventos editables inline, "Confirmar partido (recalcula puntos)"
   y re-scrape por partido.
+
+### Puntuación EN VIVO (junio 2026)
+
+- **Modelo:** `matches` ganó `minute`, `live_home_score`, `live_away_score` (el marcador FINAL
+  sigue en `home/away_score`); `match_player_events.is_live` marca eventos provisionales;
+  `team_points_log`/`player_points_log` ganaron `is_live` (los logs hacen de snapshot: al
+  regenerarse en cada recálculo, el provisional se "cierra" solo cuando el partido finaliza).
+- **Scraper en vivo** (`fifa/sync.ts` → `syncLiveMatch`): mientras un partido está `live`, el
+  scheduler lo pollea **cada tick (60 s)**: minuto + marcador provisional + eventos nuevos como
+  `is_live=1, is_confirmed=0`. Cuando el endpoint live detecta el final, el calendario (fuente
+  autoritativa del resultado/penaltis) se refresca en el mismo tick y el scrape final
+  (`syncMatchEvents`) sustituye los provisionales (`clearLiveFlags`) quedando como borradores
+  normales a la espera del admin. El paso `pending→live` lo hace el refresco rápido del
+  calendario (10 min), activado en cuanto pasa la hora de inicio.
+- **Motor intacto — overlay en vivo** (`scoring/live.ts`, funciones puras): a los partidos `live`
+  se les sintetiza una copia `finished` con el marcador provisional y sus eventos `is_live` se
+  tratan como confirmados; tras el motor, los ítems de esos partidos se marcan `isLive` y se
+  eliminan los conceptos solo-finales (`porteriaCero*`).
+  - **Puntúa en vivo (provisional, cambia con cada poll):** goles a favor/en contra, asistencias,
+    rojas, penaltis cometidos/fallados/parados en juego, goles en propia, victoria/empate/derrota
+    según el marcador parcial. Multiplicador de fase igual que en modo final.
+  - **Solo al finalizar:** resultado definitivo (incl. tanda), portería a 0, pasar ronda,
+    ganar tanda, ganar Mundial, MVP.
+- **Frontend:** la Clasificación incluye los provisionales (la caché `porra_scores` guarda el
+  combinado) y el desglose por partido muestra la etiqueta "🔴 Provisional (en vivo)".
+- **Cómo simular un partido en vivo** (testing): con un token de admin,
+  `PUT /api/admin/matches/:id` con `{"status":"live","live_home_score":1,"live_away_score":0,"minute":37}`
+  y después `POST /api/admin/recalcular`. La Clasificación y el Calendario mostrarán los
+  provisionales; para cerrar, volver a poner `status:'finished'` (o dejar que el scheduler lo haga).
+
+### Pestaña "Calendario" (`/calendario`, en el nav entre Clasificación y Normas)
+
+- `src/components/Calendario/` (`Calendario.js` + `Calendario.css` con prefijo `cal-`,
+  reutilizando las clases globales de Clasificación: `clas-hero`, `breakdown-table`, etc.).
+- Vista principal: partidos agrupados por día (zona horaria del usuario), con fase, grupo, sede
+  y badge Próximo / ● En vivo (pulsante, con minuto y marcador) / Finalizado. Polling 60 s a
+  `GET /api/matches` (el frontend jamás llama a fifa.com).
+- Detalle (`GET /api/calendario/:matchId`): qué porras tienen a los dos equipos (con ⭐ Ganador)
+  y qué jugadores de los onces pertenecen a ellos (CAP/Suplente + de quién es la porra). Si el
+  partido está en vivo/finalizado, muestra además los puntos de ESTE partido por selección y
+  jugador con el desglose por conceptos y la etiqueta "Provisional (en vivo)" / "Definitivo".
+  Los puntos salen del `breakdown_json` de `porra_scores` filtrado por `matchId` (sin recálculo).
 
 ### Variables de entorno nuevas (ver `.env.example`)
 

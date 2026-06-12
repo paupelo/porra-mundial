@@ -1,4 +1,5 @@
 import { calcularClasificacion } from './scoring/engine';
+import { applyLiveOverlay, buildLiveInput } from './scoring/live';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
 import { EventsRepo } from '../repositories/events.repo';
 import { PorrasRepo } from '../repositories/porras.repo';
@@ -39,6 +40,7 @@ function buildTeamLogRows(porraId: string, selecciones: TeamScoreResult[]): Team
         points_raw: items.reduce((s, i) => s + i.basePoints, 0),
         multiplier: groupMultiplier(items),
         points_total: items.reduce((s, i) => s + i.finalPoints, 0),
+        is_live: items.some(i => i.isLive) ? 1 : 0,
       });
     }
   }
@@ -65,6 +67,7 @@ function buildPlayerLogRows(porraId: string, jugadores: PlayerScoreResult[]): Pl
         points_raw: items.reduce((s, i) => s + i.basePoints, 0),
         multiplier: groupMultiplier(items),
         points_total: items.reduce((s, i) => s + i.finalPoints, 0),
+        is_live: items.some(i => i.isLive) ? 1 : 0,
       });
     }
   }
@@ -72,22 +75,30 @@ function buildPlayerLogRows(porraId: string, jugadores: PlayerScoreResult[]): Pl
 }
 
 /**
- * Recalcula la clasificación completa con los eventos CONFIRMADOS y persiste:
+ * Recalcula la clasificación completa y persiste:
  * - porra_scores (caché que lee /api/clasificacion)
- * - team_points_log / player_points_log (desglose por partido)
- * Los borradores sin confirmar nunca afectan a la puntuación.
+ * - team_points_log / player_points_log (desglose por partido, con is_live)
+ *
+ * Modo en vivo: los partidos con status='live' puntúan PROVISIONALMENTE con su
+ * marcador parcial y sus eventos is_live=1 (ver scoring/live.ts); esos ítems
+ * salen marcados isLive y se "cierran" solos en el primer recálculo tras el
+ * final del partido. Los borradores normales sin confirmar nunca puntúan.
  */
 export async function recalcularYGuardar(): Promise<ClasificacionResult[]> {
+  const allMatches = await MatchesRepo.findAll();
+  const allEvents  = await EventsRepo.findAll();
+  const { matches: effMatches, events: effEvents, liveIds } = buildLiveInput(allMatches, allEvents);
+
   const input: CalcInput = {
-    matches:          await MatchesRepo.findAll(),
-    events:           await EventsRepo.findAllConfirmed(),
+    matches:          effMatches,
+    events:           effEvents,
     teamPhaseResults: await PhaseResultsRepo.findAll(),
     porras:           await PorrasRepo.findAllFull(),
     teams:            await TeamsRepo.findAll(),
     players:          await PlayersRepo.findAll(),
   };
 
-  const results = calcularClasificacion(input);
+  const results = applyLiveOverlay(calcularClasificacion(input), liveIds);
 
   for (const r of results) {
     await ScoresRepo.upsert(r.porraId, r.totalPoints, r.breakdown);

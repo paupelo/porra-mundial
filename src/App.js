@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, NavLink, Link } from 'react-rou
 import ArmaTuPorra from './components/ArmaTuPorra/ArmaTuPorra';
 import Normas from './components/Normas/Normas';
 import Clasificacion from './components/Clasificacion/Clasificacion';
+import Calendario from './components/Calendario/Calendario';
 import AdminLogin from './components/Admin/AdminLogin';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import './App.css';
@@ -32,6 +33,7 @@ function App() {
                 <NavLink to="/" end>Inicio</NavLink>
                 <NavLink to="/arma-tu-porra">Arma tu Porra</NavLink>
                 <NavLink to="/clasificacion">Clasificación</NavLink>
+                <NavLink to="/calendario">Calendario</NavLink>
                 <NavLink to="/normas">Normas</NavLink>
               </nav>
             </header>
@@ -40,6 +42,7 @@ function App() {
                 <Route path="/"              element={<Inicio />} />
                 <Route path="/arma-tu-porra" element={<ArmaTuPorra />} />
                 <Route path="/clasificacion" element={<Clasificacion />} />
+                <Route path="/calendario"    element={<Calendario />} />
                 <Route path="/normas"        element={<Normas />} />
               </Routes>
             </main>

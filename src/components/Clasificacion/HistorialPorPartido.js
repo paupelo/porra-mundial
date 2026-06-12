@@ -55,10 +55,22 @@ function FilaPartido({ match, items, etiqueta, abiertoInicial }) {
   const brutos = items.reduce((s, i) => s + i.basePoints, 0);
   const finales = items.reduce((s, i) => s + i.finalPoints, 0);
   const fase = items[0]?.phase;
+  const esProvisional = items.some(i => i.isLive);
   return (
     <>
       <tr onClick={() => setAbierto(o => !o)} style={{ cursor: 'pointer' }} title="Ver desglose concepto a concepto">
-        <td style={{ fontWeight: 600 }}>{abierto ? '▾' : '▸'} {etiqueta}</td>
+        <td style={{ fontWeight: 600 }}>
+          {abierto ? '▾' : '▸'} {etiqueta}
+          {esProvisional && (
+            <span style={{
+              fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase',
+              background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5',
+              padding: '1px 6px', borderRadius: 10, marginLeft: 6, whiteSpace: 'nowrap',
+            }}>
+              🔴 Provisional (en vivo)
+            </span>
+          )}
+        </td>
         <td style={{ color: '#475569' }}>{match ? resultadoDe(match) : '—'}</td>
         <td style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{FASE_LABELS[fase] ?? fase}</td>
         <td style={{ color: '#475569' }}>{fmtPts(brutos)}</td>
@@ -79,6 +91,10 @@ function FilaPartido({ match, items, etiqueta, abiertoInicial }) {
 }
 
 function resultadoDe(match) {
+  if (match.status === 'live') {
+    const res = `${match.live_home_score ?? 0}–${match.live_away_score ?? 0}`;
+    return match.minute !== null && match.minute !== undefined ? `${res} (${match.minute}')` : res;
+  }
   if (match.home_score === null || match.home_score === undefined) return 'Pendiente';
   let res = `${match.home_score}–${match.away_score}`;
   if (match.decided_by_penalties) res += ' (pen.)';

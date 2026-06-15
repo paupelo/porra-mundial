@@ -7,6 +7,19 @@
 }
 .cal-fecha:first-child { margin-top: 0; }
 
+/* "Partidos de hoy": bloque destacado al principio del calendario. */
+.cal-today-section {
+  background: #fff; border: 1px solid #d8e3f5; border-left: 4px solid #003DA5;
+  border-radius: 12px; padding: 16px; margin-bottom: 28px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.cal-today-title {
+  font-size: 0.95rem; font-weight: 800; color: #003DA5; margin-bottom: 12px;
+}
+.cal-today-empty {
+  font-size: 0.85rem; color: #94a3b8; padding: 6px 2px;
+}
+
 .cal-match {
   display: flex; align-items: center; gap: 14px;
   background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;

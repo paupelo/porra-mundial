@@ -45,6 +45,28 @@ function Marcador({ m }) {
   return <span className="cal-match-hora">{hora}</span>;
 }
 
+// Tarjeta de partido reutilizable (calendario general y "Partidos de hoy")
+function MatchCard({ m, onSelect }) {
+  return (
+    <div
+      className={`cal-match${m.status === 'live' ? ' is-live' : ''}`}
+      onClick={() => onSelect(m.id)}
+      title="Ver detalle del partido"
+    >
+      <div className="cal-match-equipos">
+        <div className="cal-match-nombres">{m.home_team_name} – {m.away_team_name}</div>
+        <div className="cal-match-meta">
+          {FASE_LABELS[m.phase] ?? m.phase}
+          {m.group_name ? ` · ${m.group_name}` : ''}
+          {m.venue ? ` · ${m.venue}` : ''}
+        </div>
+      </div>
+      <Marcador m={m} />
+      <EstadoBadge status={m.status} />
+    </div>
+  );
+}
+
 // ─── Desglose por conceptos (mismo formato que Clasificación) ────────────────
 
 function DesgloseConceptos({ items }) {
@@ -324,27 +346,31 @@ export default function Calendario() {
           </div>
         )}
 
+        {/* Partidos de hoy: subsección destacada arriba del listado general */}
+        {!loading && !error && matches && matches.length > 0 && (() => {
+          const hoy = new Date().toLocaleDateString();
+          const rank = s => (s === 'live' ? 0 : s === 'finished' ? 2 : 1);
+          const deHoy = matches
+            .filter(m => m.match_date && new Date(m.match_date).toLocaleDateString() === hoy)
+            .sort((a, b) =>
+              rank(a.status) - rank(b.status) || (a.match_date ?? '').localeCompare(b.match_date ?? ''));
+          return (
+            <div className="cal-today-section">
+              <div className="cal-today-title">⚽ Partidos de hoy</div>
+              {deHoy.length === 0 ? (
+                <div className="cal-today-empty">No hay partidos hoy. Consulta el calendario completo más abajo.</div>
+              ) : (
+                deHoy.map(m => <MatchCard key={`hoy-${m.id}`} m={m} onSelect={setSelectedId} />)
+              )}
+            </div>
+          );
+        })()}
+
         {grupos.map(g => (
           <div key={g.dia}>
             <div className="cal-fecha">{g.dia}</div>
             {g.partidos.map(m => (
-              <div
-                key={m.id}
-                className={`cal-match${m.status === 'live' ? ' is-live' : ''}`}
-                onClick={() => setSelectedId(m.id)}
-                title="Ver detalle del partido"
-              >
-                <div className="cal-match-equipos">
-                  <div className="cal-match-nombres">{m.home_team_name} – {m.away_team_name}</div>
-                  <div className="cal-match-meta">
-                    {FASE_LABELS[m.phase] ?? m.phase}
-                    {m.group_name ? ` · ${m.group_name}` : ''}
-                    {m.venue ? ` · ${m.venue}` : ''}
-                  </div>
-                </div>
-                <Marcador m={m} />
-                <EstadoBadge status={m.status} />
-              </div>
+              <MatchCard key={m.id} m={m} onSelect={setSelectedId} />
             ))}
           </div>
         ))}

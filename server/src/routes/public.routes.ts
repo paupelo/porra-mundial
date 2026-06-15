@@ -4,6 +4,7 @@ import { PorrasRepo } from '../repositories/porras.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
 import { PlayersRepo } from '../repositories/players.repo';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
+import { computeProgresoJornada } from '../services/jornada';
 
 const router = Router();
 
@@ -39,6 +40,23 @@ router.get('/clasificacion', async (_req, res, next) => {
       };
     });
     res.json(result);
+  } catch (e) { next(e); }
+});
+
+/**
+ * GET /api/clasificacion/progreso-jornada — progreso de la jornada/ronda EN
+ * CURSO por participante: cuántas selecciones y jugadores suyos ya han disputado
+ * partido en la ronda activa. Solo lectura, no recalcula puntos.
+ * (Debe ir ANTES de /clasificacion/:porraId para no capturarse como :porraId.)
+ */
+router.get('/clasificacion/progreso-jornada', async (_req, res, next) => {
+  try {
+    const [matches, porras, players] = await Promise.all([
+      MatchesRepo.findAll(),
+      PorrasRepo.findAllFull(), // solo aprobadas
+      PlayersRepo.findAll(),
+    ]);
+    res.json(computeProgresoJornada(matches, porras, players));
   } catch (e) { next(e); }
 });
 

@@ -11,8 +11,21 @@ const VISTAS = [
   ['resumen', '📊 Resumen de elegidos'],
 ];
 
+// Mini barra de progreso compacta (selecciones / jugadores) de la jornada en curso
+function ProgBar({ icon, label, played, total }) {
+  const pct = total > 0 ? Math.round((played / total) * 100) : 0;
+  return (
+    <div className="clas-prog-row" title={`${played}/${total} ${label} con partido esta jornada`}>
+      <span className="clas-prog-ico" aria-hidden>{icon}</span>
+      <span className="clas-prog-num">{played}/{total}</span>
+      <span className="clas-prog-bar"><span className="clas-prog-fill" style={{ width: `${pct}%` }} /></span>
+    </div>
+  );
+}
+
 export default function Clasificacion() {
   const [ranking, setRanking] = useState(null);
+  const [progreso, setProgreso] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPorraId, setSelectedPorraId] = useState(null);
@@ -20,16 +33,26 @@ export default function Clasificacion() {
 
   useEffect(() => {
     let alive = true;
-    const load = () =>
+    const load = () => {
       apiGet('/clasificacion')
         .then(d => { if (alive) { setRanking(d); setError(null); } })
         .catch(e => { if (alive) setError(e.message); })
         .finally(() => { if (alive) setLoading(false); });
+      // Progreso de la jornada en curso (complementario; si falla no rompe el ranking)
+      apiGet('/clasificacion/progreso-jornada')
+        .then(d => { if (alive) setProgreso(d); })
+        .catch(() => {});
+    };
     load();
     // Actualización en tiempo real: el scheduler recalcula en el servidor
     const timer = setInterval(load, 60_000);
     return () => { alive = false; clearInterval(timer); };
   }, []);
+
+  const progByPorra = {};
+  if (progreso?.participantes) {
+    for (const p of progreso.participantes) progByPorra[p.porraId] = p;
+  }
 
   if (selectedPorraId) {
     return (
@@ -89,37 +112,59 @@ export default function Clasificacion() {
         )}
 
         {vista === 'ranking' && ranking && ranking.length > 0 && (
-          <table className="ranking-table">
-            <thead>
-              <tr>
-                <th style={{ width: 48 }}>#</th>
-                <th>Participante</th>
-                <th style={{ textAlign: 'right' }}>Puntos</th>
-                <th style={{ textAlign: 'right' }}>Dif.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranking.map(entry => (
-                <tr
-                  key={entry.porraId}
-                  className="ranking-row"
-                  onClick={() => setSelectedPorraId(entry.porraId)}
-                  title="Ver desglose completo"
-                >
-                  <td>
-                    <span className={`pos-badge pos-${entry.position <= 3 ? entry.position : 'n'}`}>
-                      {entry.position}
-                    </span>
-                  </td>
-                  <td className="participant-name">{entry.participantName}</td>
-                  <td className="participant-pts">{entry.totalPoints.toFixed(1)}</td>
-                  <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '0.8rem' }}>
-                    {entry.position === 1 ? '—' : (entry.totalPoints - ranking[0].totalPoints).toFixed(1)}
-                  </td>
+          <>
+            {progreso?.jornada && (
+              <div className="clas-jornada-tag">
+                Progreso jornada en curso: <strong>{progreso.jornada.label}</strong>
+                <span className="clas-jornada-hint"> · 🛡️ selecciones · ⚽ jugadores que ya han disputado / con partido esta jornada</span>
+              </div>
+            )}
+            <table className="ranking-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 48 }}>#</th>
+                  <th>Participante</th>
+                  <th className="clas-prog-th">Jornada en curso</th>
+                  <th style={{ textAlign: 'right' }}>Puntos</th>
+                  <th style={{ textAlign: 'right' }}>Dif.</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ranking.map(entry => {
+                  const pr = progByPorra[entry.porraId];
+                  return (
+                    <tr
+                      key={entry.porraId}
+                      className="ranking-row"
+                      onClick={() => setSelectedPorraId(entry.porraId)}
+                      title="Ver desglose completo"
+                    >
+                      <td>
+                        <span className={`pos-badge pos-${entry.position <= 3 ? entry.position : 'n'}`}>
+                          {entry.position}
+                        </span>
+                      </td>
+                      <td className="participant-name">{entry.participantName}</td>
+                      <td className="clas-prog-cell">
+                        {pr ? (
+                          <>
+                            <ProgBar icon="🛡️" label="selecciones" played={pr.selecciones.disputadas} total={pr.selecciones.total} />
+                            <ProgBar icon="⚽" label="jugadores" played={pr.jugadores.disputados} total={pr.jugadores.total} />
+                          </>
+                        ) : (
+                          <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                        )}
+                      </td>
+                      <td className="participant-pts">{entry.totalPoints.toFixed(1)}</td>
+                      <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '0.8rem' }}>
+                        {entry.position === 1 ? '—' : (entry.totalPoints - ranking[0].totalPoints).toFixed(1)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </div>

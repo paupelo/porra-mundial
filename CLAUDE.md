@@ -307,6 +307,29 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
   partido está en vivo/finalizado, muestra además los puntos de ESTE partido por selección y
   jugador con el desglose por conceptos y la etiqueta "Provisional (en vivo)" / "Definitivo".
   Los puntos salen del `breakdown_json` de `porra_scores` filtrado por `matchId` (sin recálculo).
+- **"⚽ Partidos de hoy" (jun-2026):** bloque destacado al principio de la pestaña que muestra solo
+  los partidos cuyo día (hora local del usuario) es hoy, ordenados En vivo → Próximos por hora →
+  Finalizados. Reutiliza el MISMO componente de tarjeta (`MatchCard`) que el listado general
+  (extraído sin cambios visuales); estado vacío discreto "No hay partidos hoy". El calendario
+  completo sigue intacto debajo. Clases `cal-today-*` en `Calendario.css`.
+
+### Progreso de la jornada en curso en Clasificación (jun-2026)
+
+Indicador informativo (NO altera puntos ni scoring) que muestra, por participante, cuántas de sus
+selecciones y jugadores ya han disputado partido en la ronda activa — explica por qué unos suman
+más que otros sin implicar que vayan ganando.
+- **Backend puro** (`services/jornada.ts`, con tests): `deriveGroupMatchdays` reparte cada grupo en
+  Jornadas 1/2/3 ordenando sus partidos por fecha (no hay columna `matchday`: se deriva, sin tocar
+  datos); `currentRound` = ronda de menor índice con partidos sin finalizar (frontera del torneo),
+  así el contador se reinicia solo al completarse una jornada/ronda; `computeProgresoJornada` cuenta
+  por participante selecciones/jugadores con partido en esa ronda y cuántos ya empezaron (live/finished).
+  La pertenencia jugador→selección es `player.team_id` (la misma del motor).
+- **Endpoint** `GET /api/clasificacion/progreso-jornada` (solo lectura) → `{ jornada:{key,label},
+  participantes:[{porraId,participantId,selecciones:{disputadas,total},jugadores:{disputados,total}}] }`.
+  ⚠️ Registrado ANTES de `/clasificacion/:porraId` para que Express no lo capture como `:porraId`.
+- **Frontend:** banner "Progreso jornada en curso: <ronda>" + columna nueva con dos mini barras
+  (🛡️ X/Y selecciones, ⚽ X/Z jugadores). Responsive: en móvil se ocultan las barras y queda el X/Y.
+  Polling 60 s junto al ranking; si el endpoint falla, el ranking sigue intacto.
 
 ### Subsecciones de Clasificación (junio 2026)
 

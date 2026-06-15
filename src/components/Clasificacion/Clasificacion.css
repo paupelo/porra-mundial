@@ -47,6 +47,22 @@
 .participant-name { font-size: 1rem; font-weight: 700; color: #1e293b; }
 .participant-pts  { font-size: 1.3rem; font-weight: 900; color: #003DA5; text-align: right; }
 
+/* Progreso de la jornada en curso (columna en la tabla de clasificación). */
+.clas-jornada-tag {
+  font-size: 0.8rem; color: #475569; margin-bottom: 12px; padding: 8px 12px;
+  background: #f1f5f9; border-radius: 8px; border-left: 3px solid #003DA5;
+}
+.clas-jornada-hint { color: #94a3b8; }
+.clas-prog-th { width: 180px; }
+.clas-prog-cell { min-width: 150px; }
+.clas-prog-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.clas-prog-ico { font-size: 0.8rem; width: 16px; text-align: center; }
+.clas-prog-num { font-size: 0.78rem; font-weight: 700; color: #475569; min-width: 30px; }
+.clas-prog-bar {
+  flex: 1; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; min-width: 50px;
+}
+.clas-prog-fill { display: block; height: 100%; background: #003DA5; border-radius: 3px; }
+
 .clas-loading { text-align: center; padding: 80px 0; color: #6b7c93; font-size: 1rem; }
 .clas-empty   { text-align: center; padding: 80px 0; }
 .clas-empty p { color: #94a3b8; font-size: 1rem; margin-top: 12px; }
@@ -153,4 +169,10 @@
   .sel-grid { grid-template-columns: 1fr 1fr; }
   .porra-cols { display: block; }
   .porra-cols .detalle-section { margin-bottom: 40px; }
+  /* Compactar la tabla y el progreso en móvil. */
+  .ranking-row td { padding: 12px 8px; }
+  .clas-prog-th, .clas-prog-cell { width: auto; min-width: 96px; }
+  .clas-prog-bar { display: none; }
+  .clas-prog-num { min-width: 28px; }
+  .clas-jornada-hint { display: none; }
 }

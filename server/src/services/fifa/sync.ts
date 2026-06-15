@@ -205,6 +205,7 @@ async function reconcileAndSaveTallies(
 
   const existingEvents = await EventsRepo.findByMatch(match.id);
   const confirmedPlayerIds = new Set(existingEvents.filter(e => e.is_confirmed === 1).map(e => e.player_id));
+  const existingByPlayerId = new Map(existingEvents.map(e => [e.player_id, e]));
 
   for (const tally of tallies.values()) {
     const hasData = tally.minutes_played > 0 || tally.goals_open_play || tally.goals_penalty_play ||
@@ -229,8 +230,18 @@ async function reconcileAndSaveTallies(
       continue;
     }
     if (confirmedPlayerIds.has(best.item.id)) {
-      result.skippedConfirmed++;
-      continue; // el admin ya validó a este jugador en este partido
+      // El admin ya validó las stats de este jugador: no las pisamos, pero SÍ
+      // rellenamos el intervalo en campo si aún no estaba (dato nuevo que no
+      // existía cuando se confirmó el partido) y aporta algo (no titular pleno).
+      const existing = existingByPlayerId.get(best.item.id);
+      const hasInterval = tally.minute_in !== 0 || tally.minute_out !== null;
+      if (existing && existing.minute_in == null && existing.minute_out == null && hasInterval) {
+        await EventsRepo.backfillMinutes(match.id, best.item.id, tally.minute_in, tally.minute_out);
+        result.saved++;
+      } else {
+        result.skippedConfirmed++;
+      }
+      continue;
     }
 
     await EventsRepo.upsert({
@@ -260,8 +271,10 @@ async function reconcileAndSaveTallies(
   }
 
   // Minutos de gol del partido (para portería a cero / gol encajado por intervalo).
-  // No se pisan si el admin ya validó el partido.
-  if (confirmedPlayerIds.size === 0 && fifaTeamToOurs.size > 0) {
+  // Se derivan del timeline y se refrescan en cada scrape (en vivo o final); el
+  // scheduler no re-scrapea partidos ya cerrados, así que no pisa ediciones del
+  // admin salvo que este pulse "Re-scrapear" explícitamente.
+  if (fifaTeamToOurs.size > 0) {
     const homeMinutes: number[] = [];
     const awayMinutes: number[] = [];
     for (const g of goalEvents) {

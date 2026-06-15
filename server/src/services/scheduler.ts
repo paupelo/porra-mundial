@@ -110,6 +110,10 @@ async function deriveKnockoutPhaseResults(match: MatchRecord): Promise<void> {
 
 let lastCalendarSyncMs = 0;
 let ticking = false;
+// Partidos finalizados ANTES de existir los minutos de gol / intervalo: se
+// re-scrapean una vez para rellenarlos. El Set evita reintentos en bucle si el
+// timeline no llega a poblarlos (idempotente: se reintenta al reiniciar).
+const intervalBackfillAttempted = new Set<string>();
 
 async function tick(): Promise<void> {
   if (ticking) return;
@@ -163,7 +167,11 @@ async function tick(): Promise<void> {
     // provisionales del modo en vivo) → descargar timeline definitivo
     for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'finished')) {
       const counts = await EventsRepo.countByMatch(m.id);
-      if (counts.total === 0 || counts.live > 0) {
+      // Backfill de minutos de gol/intervalo en partidos cerrados antes de la feature.
+      const needsIntervalBackfill = m.home_goal_minutes == null && m.away_goal_minutes == null
+        && !intervalBackfillAttempted.has(m.id);
+      if (counts.total === 0 || counts.live > 0 || needsIntervalBackfill) {
+        if (needsIntervalBackfill) intervalBackfillAttempted.add(m.id);
         log(`scrapeando eventos de ${m.id} (FIFA ${m.fifa_match_id})…`);
         const summary = await syncMatchEvents(m);
         log(`eventos de ${m.id}: ${summary.saved} guardados, ${summary.unreconciled.length} sin conciliar`);

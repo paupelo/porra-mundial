@@ -54,6 +54,17 @@ export const EventsRepo = {
     await getDb().query(`UPDATE match_player_events SET is_confirmed=1 WHERE match_id=$1`, [matchId]);
   },
 
+  /**
+   * Rellena SOLO el intervalo en campo (minute_in/minute_out) sin tocar las
+   * stats ya confirmadas. Para backfill de partidos validados antes de existir
+   * estos campos (portería a cero / gol encajado por intervalo).
+   */
+  async backfillMinutes(matchId: string, playerId: string, minuteIn: number, minuteOut: number | null): Promise<void> {
+    await getDb().query(
+      `UPDATE match_player_events SET minute_in=$3, minute_out=$4 WHERE match_id=$1 AND player_id=$2`,
+      [matchId, playerId, minuteIn, minuteOut]);
+  },
+
   async countByMatch(matchId: string): Promise<{ total: number; confirmed: number; live: number }> {
     const result = await getDb().query(
       `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_confirmed=1)::int AS confirmed,

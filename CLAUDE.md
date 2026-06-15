@@ -347,6 +347,12 @@ Ahora se cuentan **solo los goles encajados en el intervalo que el jugador estuv
   (campo "sale" vacío = jugó hasta el final).
 - **En vivo:** `porteriaCero` se sigue descartando en vivo (`FINAL_ONLY_CONCEPTS`); `golEncajado`
   provisional usa el mismo intervalo con los goles capturados hasta el momento (minute_out aún null).
+- **Backfill de partidos ya cerrados:** los partidos finalizados ANTES de esta feature tienen
+  `*_goal_minutes` a null y eventos confirmados. El scheduler los re-scrapea **una vez** cuando
+  detecta `home_goal_minutes IS NULL` (Set en memoria evita bucles); `reconcileAndSaveTallies`
+  rellena `minute_in/minute_out` de jugadores confirmados sin tocar sus stats
+  (`EventsRepo.backfillMinutes`) y reescribe los minutos de gol del partido. El botón
+  "Re-scrapear eventos de FIFA" hace lo mismo por partido y recalcula al instante.
 
 ### Variables de entorno nuevas (ver `.env.example`)
 

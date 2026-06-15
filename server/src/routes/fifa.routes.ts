@@ -4,6 +4,7 @@ import { MatchesRepo } from '../repositories/matches.repo';
 import { EventsRepo } from '../repositories/events.repo';
 import { syncCalendar, syncMatchEvents } from '../services/fifa/sync';
 import { getSchedulerStatus, runTickNow } from '../services/scheduler';
+import { recalcularYGuardar } from '../services/recalc';
 
 const router = Router();
 router.use(requireAdmin);
@@ -29,7 +30,11 @@ router.post('/sync-match/:matchId', async (req, res, next) => {
     const match = await MatchesRepo.findById(req.params.matchId);
     if (!match) { res.status(404).json({ error: 'Partido no encontrado' }); return; }
     if (!match.fifa_match_id) { res.status(400).json({ error: 'Este partido no está enlazado a FIFA' }); return; }
-    res.json(await syncMatchEvents(match));
+    const summary = await syncMatchEvents(match);
+    // El re-scrape puede rellenar minutos de gol / intervalo de un partido ya
+    // finalizado: recalculamos para que el cambio se refleje al momento.
+    await recalcularYGuardar();
+    res.json(summary);
   } catch (e) { next(e); }
 });
 

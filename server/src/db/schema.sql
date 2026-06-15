@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS matches (
   minute               INTEGER,
   live_home_score      INTEGER,
   live_away_score      INTEGER,
+  home_goal_minutes    INTEGER[],
+  away_goal_minutes    INTEGER[],
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -61,6 +63,8 @@ CREATE TABLE IF NOT EXISTS match_player_events (
   source                    TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','besoccer_draft','fifa_draft')),
   is_confirmed              INTEGER NOT NULL DEFAULT 0,
   is_live                   INTEGER NOT NULL DEFAULT 0,
+  minute_in                 INTEGER,
+  minute_out                INTEGER,
   created_at                TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, player_id)
 );

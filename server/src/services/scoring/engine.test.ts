@@ -482,6 +482,48 @@ describe('Gol encajado', () => {
   });
 });
 
+describe('Portería a cero y gol encajado por intervalo en campo', () => {
+  // El equipo local 'esp' encaja los goles del visitante (away_goal_minutes).
+  test('Portero sale en el 70; el rival marca en el 85 → portería a cero (gol fuera de su intervalo)', () => {
+    const p = makePlayer('gk', 'esp', 'portero');
+    const m: MatchRecord = { ...makeMatch('m1', 'esp', 'opp', 'grupos', 0, 1), away_goal_minutes: [85] };
+    const ev = makeEvent('m1', 'gk', 'esp', { minutes_played: 70, minute_in: 0, minute_out: 70 });
+    const r = calcPlayerScore(p, 'titular', 'portero', false, [], [m], new Map([['m1', ev]]), [], false);
+    expect(r.items.find(i => i.concept === 'porteriaCero')).toBeDefined();
+    expect(r.items.find(i => i.concept === 'golEncajado')).toBeUndefined();
+  });
+
+  test('Defensa solo responde por el gol encajado en su intervalo', () => {
+    const p = makePlayer('def', 'esp', 'defensa');
+    // Marcador final 0-2, pero el defensa estuvo [0, 60]: solo el gol del 30 cuenta.
+    const m: MatchRecord = { ...makeMatch('m1', 'esp', 'opp', 'grupos', 0, 2), away_goal_minutes: [30, 80] };
+    const ev = makeEvent('m1', 'def', 'esp', { minutes_played: 60, minute_in: 0, minute_out: 60 });
+    const r = calcPlayerScore(p, 'titular', 'defensa', false, [], [m], new Map([['m1', ev]]), [], false);
+    const ge = r.items.find(i => i.concept === 'golEncajado');
+    expect(ge!.basePoints).toBe(-5); // -5 × 1 gol
+    expect(r.items.find(i => i.concept === 'porteriaCero')).toBeUndefined();
+  });
+
+  test('Suplente que entra en el 75 no carga los goles previos', () => {
+    const p = makePlayer('def', 'esp', 'defensa');
+    const m: MatchRecord = { ...makeMatch('m1', 'esp', 'opp', 'grupos', 0, 2), away_goal_minutes: [20, 50] };
+    const ev = makeEvent('m1', 'def', 'esp', { minutes_played: 15, minute_in: 75, minute_out: null });
+    const r = calcPlayerScore(p, 'titular', 'defensa', false, [], [m], new Map([['m1', ev]]), [], false);
+    // 0 goles en [75, fin] → sin penalización; y <60 min → sin portería a cero
+    expect(r.items.find(i => i.concept === 'golEncajado')).toBeUndefined();
+    expect(r.items.find(i => i.concept === 'porteriaCero')).toBeUndefined();
+  });
+
+  test('Sin datos de minutos de gol → fallback al marcador final', () => {
+    const p = makePlayer('def', 'esp', 'defensa');
+    // Sale en el 30 pero NO hay away_goal_minutes → cuenta los 2 del marcador final.
+    const m = makeMatch('m1', 'esp', 'opp', 'grupos', 0, 2);
+    const ev = makeEvent('m1', 'def', 'esp', { minutes_played: 30, minute_in: 0, minute_out: 30 });
+    const r = calcPlayerScore(p, 'titular', 'defensa', false, [], [m], new Map([['m1', ev]]), [], false);
+    expect(r.items.find(i => i.concept === 'golEncajado')!.basePoints).toBe(-10); // -5 × 2
+  });
+});
+
 describe('Penalti parado', () => {
   test('Portero para 1 penalti en juego → +30', () => {
     const p = makePlayer('gk', 'esp', 'portero');

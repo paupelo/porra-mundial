@@ -53,6 +53,34 @@ function isSuplenteFull(
   );
 }
 
+// ─── Intervalo en campo (portería a cero y gol encajado) ─────────────────────
+
+/**
+ * Goles que el jugador encajó MIENTRAS estaba en el campo. Lógica compartida
+ * por "portería a cero" y "gol encajado": un jugador que entró en el 70' o salió
+ * en el 60' solo responde por los goles encajados en su intervalo de juego.
+ *
+ * Requiere los minutos de gol del rival (match.{home,away}_goal_minutes) y el
+ * intervalo del jugador (event.minute_in/minute_out). Si falta cualquiera de los
+ * dos cae al comportamiento previo: el total de goles del marcador final.
+ *
+ * @param finalGoalsConceded goles encajados según el marcador final (fallback).
+ */
+export function goalsConcededWhileOnPitch(
+  event: MatchPlayerEventRecord,
+  match: MatchRecord,
+  isHome: boolean,
+  finalGoalsConceded: number,
+): number {
+  // El jugador encaja los goles que marcó el equipo RIVAL.
+  const concededMinutes = isHome ? match.away_goal_minutes : match.home_goal_minutes;
+  if (concededMinutes == null) return finalGoalsConceded;
+
+  const inMin = event.minute_in ?? 0;
+  const outMin = event.minute_out ?? Infinity;
+  return concededMinutes.filter(m => m >= inMin && m <= outMin).length;
+}
+
 // ─── Puntuación de jugadores por partido ─────────────────────────────────────
 
 function calcMatchPoints(
@@ -87,9 +115,12 @@ function calcMatchPoints(
 
   // ── Portería a cero ───────────────────────────────────────────────────────
   const isHome = match.home_team_id === event.team_id;
-  const goalsConceded = isHome ? (match.away_score ?? 0) : (match.home_score ?? 0);
+  const finalGoalsConceded = isHome ? (match.away_score ?? 0) : (match.home_score ?? 0);
+  // Goles encajados mientras el jugador estuvo en el campo (intervalo). Si no
+  // hay datos de minutos, equivale al marcador final (comportamiento previo).
+  const goalsConceded = goalsConcededWhileOnPitch(event, match, isHome, finalGoalsConceded);
 
-  // Portería a cero: ≥60 min, 0 goles en tiempo reglamentario, no cuenta tanda
+  // Portería a cero: ≥60 min, 0 goles encajados en su intervalo (no cuenta tanda)
   const qualifiesPorteriaCero = event.minutes_played >= 60 && goalsConceded === 0;
 
   if (qualifiesPorteriaCero) {

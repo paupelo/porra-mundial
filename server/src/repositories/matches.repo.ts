@@ -5,7 +5,7 @@ import { MatchRecord, TeamPhaseResultRecord } from '../types';
 const COLS = `id,phase,home_team_id,away_team_id,match_date,status,
   home_score,away_score,decided_by_penalties,penalty_winner_id,
   fifa_match_id,fifa_stage_id,group_name,venue,last_scraped_at,
-  minute,live_home_score,live_away_score`;
+  minute,live_home_score,live_away_score,home_goal_minutes,away_goal_minutes`;
 
 export const MatchesRepo = {
   async findAll(): Promise<MatchRecord[]> {
@@ -39,13 +39,14 @@ export const MatchesRepo = {
   async create(data: Omit<MatchRecord, 'id'>): Promise<MatchRecord> {
     const id = uuid();
     await getDb().query(`INSERT INTO matches(id,phase,home_team_id,away_team_id,match_date,status,
-      home_score,away_score,decided_by_penalties,penalty_winner_id,fifa_match_id,fifa_stage_id,group_name,venue,last_scraped_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      home_score,away_score,decided_by_penalties,penalty_winner_id,fifa_match_id,fifa_stage_id,group_name,venue,last_scraped_at,
+      home_goal_minutes,away_goal_minutes)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [id, data.phase, data.home_team_id, data.away_team_id, data.match_date ?? null,
         data.status, data.home_score ?? null, data.away_score ?? null,
         data.decided_by_penalties, data.penalty_winner_id ?? null,
         data.fifa_match_id ?? null, data.fifa_stage_id ?? null, data.group_name ?? null, data.venue ?? null,
-        data.last_scraped_at ?? null],
+        data.last_scraped_at ?? null, data.home_goal_minutes ?? null, data.away_goal_minutes ?? null],
     );
     return { id, ...data };
   },

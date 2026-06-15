@@ -5,7 +5,7 @@ import { MatchPlayerEventRecord } from '../types';
 const COLS = `id,match_id,player_id,team_id,minutes_played,goals_open_play,goals_penalty_play,
   goals_penalty_shootout,assists,penalty_saved_play,penalty_saved_shootout,red_card,
   penalty_conceded,penalty_missed_play,penalty_missed_shootout,own_goals,
-  is_improvised_goalkeeper,source,is_confirmed,is_live`;
+  is_improvised_goalkeeper,source,is_confirmed,is_live,minute_in,minute_out`;
 
 export const EventsRepo = {
   async findByMatch(matchId: string): Promise<MatchPlayerEventRecord[]> {
@@ -29,8 +29,8 @@ export const EventsRepo = {
       INSERT INTO match_player_events(id,match_id,player_id,team_id,minutes_played,goals_open_play,
         goals_penalty_play,goals_penalty_shootout,assists,penalty_saved_play,penalty_saved_shootout,
         red_card,penalty_conceded,penalty_missed_play,penalty_missed_shootout,own_goals,
-        is_improvised_goalkeeper,source,is_confirmed,is_live)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        is_improvised_goalkeeper,source,is_confirmed,is_live,minute_in,minute_out)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
       ON CONFLICT(match_id,player_id) DO UPDATE SET
         minutes_played=EXCLUDED.minutes_played, goals_open_play=EXCLUDED.goals_open_play,
         goals_penalty_play=EXCLUDED.goals_penalty_play, goals_penalty_shootout=EXCLUDED.goals_penalty_shootout,
@@ -39,13 +39,15 @@ export const EventsRepo = {
         penalty_conceded=EXCLUDED.penalty_conceded, penalty_missed_play=EXCLUDED.penalty_missed_play,
         penalty_missed_shootout=EXCLUDED.penalty_missed_shootout, own_goals=EXCLUDED.own_goals,
         is_improvised_goalkeeper=EXCLUDED.is_improvised_goalkeeper, source=EXCLUDED.source,
-        is_confirmed=EXCLUDED.is_confirmed, is_live=EXCLUDED.is_live
+        is_confirmed=EXCLUDED.is_confirmed, is_live=EXCLUDED.is_live,
+        minute_in=EXCLUDED.minute_in, minute_out=EXCLUDED.minute_out
     `, [id, data.match_id, data.player_id, data.team_id, data.minutes_played,
       data.goals_open_play, data.goals_penalty_play, data.goals_penalty_shootout,
       data.assists, data.penalty_saved_play, data.penalty_saved_shootout,
       data.red_card, data.penalty_conceded, data.penalty_missed_play,
       data.penalty_missed_shootout, data.own_goals, data.is_improvised_goalkeeper,
-      data.source, data.is_confirmed, data.is_live ?? 0]);
+      data.source, data.is_confirmed, data.is_live ?? 0,
+      data.minute_in ?? null, data.minute_out ?? null]);
   },
 
   async confirmAll(matchId: string): Promise<void> {

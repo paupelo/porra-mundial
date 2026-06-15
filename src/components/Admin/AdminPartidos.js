@@ -5,7 +5,15 @@ const PHASES = ['grupos', 'dieciseisavos', 'octavos', 'cuartos', 'semifinales', 
 const STATUS  = ['pending', 'live', 'finished'];
 const PHASE_RESULTS = ['advanced', 'eliminated', 'winner'];
 
-const EMPTY_M = { phase: 'grupos', home_team_id: '', away_team_id: '', match_date: '', status: 'pending', home_score: '', away_score: '', decided_by_penalties: 0, penalty_winner_id: '' };
+const EMPTY_M = { phase: 'grupos', home_team_id: '', away_team_id: '', match_date: '', status: 'pending', home_score: '', away_score: '', decided_by_penalties: 0, penalty_winner_id: '', home_goal_minutes: '', away_goal_minutes: '' };
+
+// "12, 45, 80" → [12, 45, 80]; vacío → null (sin datos → cae al marcador final)
+function parseMinutes(raw) {
+  if (raw == null) return null;
+  const mins = String(raw).split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isFinite(n));
+  return mins.length ? mins.sort((a, b) => a - b) : null;
+}
+const minutesToStr = (arr) => Array.isArray(arr) ? arr.join(', ') : '';
 
 export default function AdminPartidos() {
   const [matches, setMatches] = useState([]);
@@ -21,7 +29,7 @@ export default function AdminPartidos() {
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
 
   async function saveMatch() {
-    const body = { ...form, home_score: form.home_score === '' ? null : +form.home_score, away_score: form.away_score === '' ? null : +form.away_score, decided_by_penalties: +form.decided_by_penalties, penalty_winner_id: form.penalty_winner_id || null };
+    const body = { ...form, home_score: form.home_score === '' ? null : +form.home_score, away_score: form.away_score === '' ? null : +form.away_score, decided_by_penalties: +form.decided_by_penalties, penalty_winner_id: form.penalty_winner_id || null, home_goal_minutes: parseMinutes(form.home_goal_minutes), away_goal_minutes: parseMinutes(form.away_goal_minutes) };
     if (editing) await apiPut(`/admin/matches/${editing}`, body);
     else await apiPost('/admin/matches', body);
     setForm(EMPTY_M); setEditing(null); load();
@@ -83,6 +91,12 @@ export default function AdminPartidos() {
               </select>
             </div>
           )}
+          <div className="form-group"><label>Min. goles local</label>
+            <input value={form.home_goal_minutes} onChange={e => setForm(f => ({ ...f, home_goal_minutes: e.target.value }))} style={{ width: 130 }} placeholder="p. ej. 12, 67" title="Minutos en los que marcó el local (separados por comas). Para portería a cero / gol encajado por intervalo." />
+          </div>
+          <div className="form-group"><label>Min. goles visit.</label>
+            <input value={form.away_goal_minutes} onChange={e => setForm(f => ({ ...f, away_goal_minutes: e.target.value }))} style={{ width: 130 }} placeholder="p. ej. 45, 90" title="Minutos en los que marcó el visitante (separados por comas)." />
+          </div>
           <button className="btn btn-primary" onClick={saveMatch}>{editing ? 'Actualizar' : 'Añadir'}</button>
           {editing && <button className="btn" onClick={() => { setEditing(null); setForm(EMPTY_M); }}>Cancelar</button>}
         </div>
@@ -100,7 +114,7 @@ export default function AdminPartidos() {
                 <td>{m.status}</td>
                 <td>
                   <div className="btn-group">
-                    <button className="btn btn-sm" onClick={() => { setEditing(m.id); setForm({ phase: m.phase, home_team_id: m.home_team_id, away_team_id: m.away_team_id, match_date: m.match_date ?? '', status: m.status, home_score: m.home_score ?? '', away_score: m.away_score ?? '', decided_by_penalties: m.decided_by_penalties, penalty_winner_id: m.penalty_winner_id ?? '' }); }}>✏️</button>
+                    <button className="btn btn-sm" onClick={() => { setEditing(m.id); setForm({ phase: m.phase, home_team_id: m.home_team_id, away_team_id: m.away_team_id, match_date: m.match_date ?? '', status: m.status, home_score: m.home_score ?? '', away_score: m.away_score ?? '', decided_by_penalties: m.decided_by_penalties, penalty_winner_id: m.penalty_winner_id ?? '', home_goal_minutes: minutesToStr(m.home_goal_minutes), away_goal_minutes: minutesToStr(m.away_goal_minutes) }); }}>✏️</button>
                     <button className="btn btn-danger btn-sm" onClick={async () => { if (window.confirm('¿Eliminar?')) { await apiDelete(`/admin/matches/${m.id}`); load(); } }}>🗑</button>
                   </div>
                 </td>

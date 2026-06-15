@@ -159,6 +159,22 @@ export interface PlayerTally {
   penalty_missed_shootout: number;
   own_goals: number;
   minutes_played: number;
+  /** Minuto en el que el jugador entró al campo (0 = titular). */
+  minute_in: number;
+  /** Minuto en el que salió (sustituido o expulsado); null = jugó hasta el final. */
+  minute_out: number | null;
+}
+
+/**
+ * Gol marcado en tiempo reglamentario/prórroga (NO tanda), para derivar los
+ * minutos de gol de cada equipo. `isOwnGoal` => el tanto cuenta para el RIVAL
+ * del equipo del jugador que lo marcó (se resuelve aguas arriba en sync.ts,
+ * donde se conoce el mapeo equipo FIFA → local/visitante).
+ */
+export interface GoalEvent {
+  fifaTeamId: string | null;
+  minute: number;
+  isOwnGoal: boolean;
 }
 
 export interface LineupEntry {
@@ -182,6 +198,7 @@ function emptyTally(fifaPlayerId: string, fifaTeamId: string | null): PlayerTall
     red_card: 0, penalty_conceded: 0,
     penalty_missed_play: 0, penalty_missed_shootout: 0,
     own_goals: 0, minutes_played: 0,
+    minute_in: 0, minute_out: null,
   };
 }
 
@@ -239,6 +256,8 @@ export function isShootoutEvent(event: AnyObj): boolean {
 
 export interface TimelineAggregation {
   tallies: Map<string, PlayerTally>; // fifaPlayerId → tally
+  /** Goles en tiempo reglamentario/prórroga, en orden de aparición. */
+  goalEvents: GoalEvent[];
   unmappedTypes: Array<{ type: unknown; description: string }>;
 }
 
@@ -258,6 +277,9 @@ export function aggregateTimeline(
   const tallies = new Map<string, PlayerTally>();
   const unmappedTypes: Array<{ type: unknown; description: string }> = [];
   const substitutions: SubstitutionInfo[] = [];
+  const goalEvents: GoalEvent[] = [];
+  // Minuto de expulsión: un jugador con roja abandona el campo (salida).
+  const redMinuteByPlayer = new Map<string, number>();
 
   const getTally = (fifaPlayerId: string, fifaTeamId: string | null): PlayerTally => {
     if (!tallies.has(fifaPlayerId)) tallies.set(fifaPlayerId, emptyTally(fifaPlayerId, fifaTeamId));
@@ -289,18 +311,20 @@ export function aggregateTimeline(
     }
     if (!playerId) continue;
     const tally = getTally(playerId, teamId);
+    const minute = parseMinute(ev?.MatchMinute) ?? 0;
 
     switch (kind) {
       case 'goal':
         if (shootout) tally.goals_penalty_shootout++;
-        else tally.goals_open_play++;
+        else { tally.goals_open_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
         break;
       case 'penalty_goal':
         if (shootout) tally.goals_penalty_shootout++;
-        else tally.goals_penalty_play++;
+        else { tally.goals_penalty_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
         break;
       case 'own_goal':
         tally.own_goals++;
+        goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: true });
         break;
       case 'penalty_missed':
         if (shootout) tally.penalty_missed_shootout++;
@@ -312,6 +336,7 @@ export function aggregateTimeline(
         break;
       case 'red_card':
         tally.red_card = 1;
+        redMinuteByPlayer.set(playerId, minute);
         break;
       case 'assist':
         // Las asistencias llegan como evento propio (Type 1) con IdPlayer = asistente
@@ -320,27 +345,38 @@ export function aggregateTimeline(
     }
   }
 
-  // ── Minutos jugados ─────────────────────────────────────────────────────────
-  const outByPlayer = new Map(substitutions.map(s => [s.playerOutId, s.minute]));
+  // ── Minutos jugados e intervalo en campo ─────────────────────────────────────
+  const subOutByPlayer = new Map(substitutions.map(s => [s.playerOutId, s.minute]));
   const inByPlayer = new Map(substitutions.map(s => [s.playerInId, s.minute]));
+
+  // Salida = lo primero que ocurra entre sustitución y expulsión.
+  const exitMinute = (fifaPlayerId: string): number | undefined => {
+    const sub = subOutByPlayer.get(fifaPlayerId);
+    const red = redMinuteByPlayer.get(fifaPlayerId);
+    const mins = [sub, red].filter((m): m is number => m !== undefined);
+    return mins.length ? Math.min(...mins) : undefined;
+  };
 
   for (const entry of lineup) {
     const tally = getTally(entry.fifaPlayerId, entry.fifaTeamId);
+    const out = exitMinute(entry.fifaPlayerId);
     if (entry.isStarter) {
-      const out = outByPlayer.get(entry.fifaPlayerId);
-      tally.minutes_played = out !== undefined ? Math.min(out, matchDurationMin) : matchDurationMin;
+      tally.minute_in = 0;
+      tally.minute_out = out !== undefined ? Math.min(out, matchDurationMin) : null;
+      tally.minutes_played = tally.minute_out ?? matchDurationMin;
     } else {
       const inMin = inByPlayer.get(entry.fifaPlayerId);
       if (inMin !== undefined) {
-        const out = outByPlayer.get(entry.fifaPlayerId);
-        const end = out !== undefined ? Math.min(out, matchDurationMin) : matchDurationMin;
-        tally.minutes_played = Math.max(0, end - Math.min(inMin, matchDurationMin));
+        tally.minute_in = Math.min(inMin, matchDurationMin);
+        tally.minute_out = out !== undefined ? Math.min(out, matchDurationMin) : null;
+        const end = tally.minute_out ?? matchDurationMin;
+        tally.minutes_played = Math.max(0, end - tally.minute_in);
       }
       // Suplente que no entró: 0 minutos (no genera registro útil, se filtra después)
     }
   }
 
-  return { tallies, unmappedTypes };
+  return { tallies, goalEvents, unmappedTypes };
 }
 
 // ─── Estado en vivo de un partido ────────────────────────────────────────────

@@ -14,6 +14,7 @@ const ESTADO_LABELS = { pending: 'Programado', live: 'EN JUEGO', finished: 'Fina
 // Campos numéricos editables de un evento, en orden de columna
 const NUM_FIELDS = [
   ['minutes_played', 'Min'],
+  ['minute_in', 'Entra'],
   ['goals_open_play', 'G.jgo'],
   ['goals_penalty_play', 'G.pen'],
   ['goals_penalty_shootout', 'G.tda'],
@@ -33,7 +34,8 @@ function FilaEvento({ ev, playerMap, onSaved, setMsg }) {
 
   async function guardar() {
     try {
-      await apiPost('/admin/events', { ...form, is_confirmed: ev.is_confirmed });
+      const minute_out = form.minute_out === '' || form.minute_out == null ? null : +form.minute_out;
+      await apiPost('/admin/events', { ...form, minute_out, is_confirmed: ev.is_confirmed });
       setMsg('✓ Evento guardado');
       setEdit(false);
       onSaved();
@@ -47,7 +49,7 @@ function FilaEvento({ ev, playerMap, onSaved, setMsg }) {
         <td key={field} style={{ textAlign: 'center' }}>
           {edit ? (
             <input
-              type="number" min={0} value={form[field]}
+              type="number" min={0} value={form[field] ?? 0}
               style={{ width: 44 }}
               onChange={e => setForm(f => ({ ...f, [field]: +e.target.value }))}
             />
@@ -56,6 +58,17 @@ function FilaEvento({ ev, playerMap, onSaved, setMsg }) {
           )}
         </td>
       ))}
+      <td style={{ textAlign: 'center' }}>
+        {edit ? (
+          <input
+            type="number" min={0} value={form.minute_out ?? ''} placeholder="fin"
+            style={{ width: 44 }}
+            onChange={e => setForm(f => ({ ...f, minute_out: e.target.value }))}
+          />
+        ) : (
+          ev.minute_out != null ? `${ev.minute_out}'` : 'fin'
+        )}
+      </td>
       <td>
         <span className={`badge badge-${ev.is_confirmed ? 'confirmed' : 'draft'}`}>
           {ev.is_confirmed ? 'OK' : 'borrador'}
@@ -115,6 +128,7 @@ function PanelPartido({ match, playerMap, setMsg, refrescar }) {
               <tr>
                 <th>Jugador</th>
                 {NUM_FIELDS.map(([f, label]) => <th key={f} style={{ textAlign: 'center' }}>{label}</th>)}
+                <th style={{ textAlign: 'center' }}>Sale</th>
                 <th>Estado</th>
                 <th></th>
               </tr>

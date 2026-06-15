@@ -185,6 +185,34 @@ describe('FIFA mapper — aggregateTimeline', () => {
     expect(tallies.get('p4')!.red_card).toBe(1);
   });
 
+  it('captura el intervalo en campo (minute_in/minute_out) y los minutos de gol', () => {
+    const events = [
+      { Type: 0, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "23'", Period: 3, EventDescription: [{ Description: 'Gol de Messi' }] },
+      { Type: 0, IdPlayer: 'p4', IdTeam: 't2', MatchMinute: "65'", Period: 5, EventDescription: [{ Description: 'Gol de Portero Rival' }] },
+      { Type: 34, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "78'", Period: 5, EventDescription: [{ Description: 'Autogol' }] },
+      { Type: 3, IdPlayer: 'p4', IdTeam: 't2', MatchMinute: "70'", Period: 5, EventDescription: [{ Description: 'Tarjeta roja' }] },
+      { Type: 5, IdPlayer: 'p3', IdSubPlayer: 'p2', IdTeam: 't1', MatchMinute: "60'", Period: 5, EventDescription: [{ Description: 'Cambio' }] },
+      { Type: 0, IdPlayer: 'p1', IdTeam: 't1', Period: 11, EventDescription: [{ Description: 'Gol en la tanda' }] },
+    ];
+    const { tallies, goalEvents } = aggregateTimeline(events, lineup, 90);
+
+    // Titular sin salir → [0, null]
+    expect(tallies.get('p1')!).toMatchObject({ minute_in: 0, minute_out: null });
+    // Sustituido en el 60 → sale en el 60
+    expect(tallies.get('p2')!).toMatchObject({ minute_in: 0, minute_out: 60 });
+    // Entró en el 60 → minute_in 60, sin salir
+    expect(tallies.get('p3')!).toMatchObject({ minute_in: 60, minute_out: null });
+    // Expulsado en el 70 → la roja cuenta como salida
+    expect(tallies.get('p4')!).toMatchObject({ minute_in: 0, minute_out: 70 });
+
+    // Goles en tiempo reglamentario (la tanda NO entra); el autogol queda marcado.
+    expect(goalEvents).toEqual([
+      { fifaTeamId: 't1', minute: 23, isOwnGoal: false },
+      { fifaTeamId: 't2', minute: 65, isOwnGoal: false },
+      { fifaTeamId: 't1', minute: 78, isOwnGoal: true },
+    ]);
+  });
+
   it('separa los penaltis de la tanda de los de juego', () => {
     const events = [
       { Type: 0, IdPlayer: 'p1', IdTeam: 't1', Period: 11, EventDescription: [{ Description: 'Gol en la tanda' }] },

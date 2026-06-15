@@ -16,6 +16,7 @@ import {
   extractLiveStatus,
   localized,
   mapCalendarMatch,
+  GoalEvent,
   LineupEntry,
   PlayerTally,
 } from './mapper';
@@ -180,6 +181,7 @@ interface SaveTalliesResult {
 async function reconcileAndSaveTallies(
   match: MatchRecord,
   tallies: Map<string, PlayerTally>,
+  goalEvents: GoalEvent[],
   lineup: LineupEntry[],
   liveData: unknown,
   isLive: boolean,
@@ -251,8 +253,29 @@ async function reconcileAndSaveTallies(
       source: 'fifa_draft',
       is_confirmed: 0,
       is_live: isLive ? 1 : 0,
+      minute_in: tally.minute_in,
+      minute_out: tally.minute_out,
     });
     result.saved++;
+  }
+
+  // Minutos de gol del partido (para portería a cero / gol encajado por intervalo).
+  // No se pisan si el admin ya validó el partido.
+  if (confirmedPlayerIds.size === 0 && fifaTeamToOurs.size > 0) {
+    const homeMinutes: number[] = [];
+    const awayMinutes: number[] = [];
+    for (const g of goalEvents) {
+      let scoringTeam = g.fifaTeamId ? fifaTeamToOurs.get(g.fifaTeamId) ?? null : null;
+      // Autogol: el tanto cuenta para el rival del equipo del jugador.
+      if (g.isOwnGoal && scoringTeam) {
+        scoringTeam = scoringTeam === match.home_team_id ? match.away_team_id : match.home_team_id;
+      }
+      if (scoringTeam === match.home_team_id) homeMinutes.push(g.minute);
+      else if (scoringTeam === match.away_team_id) awayMinutes.push(g.minute);
+    }
+    homeMinutes.sort((a, b) => a - b);
+    awayMinutes.sort((a, b) => a - b);
+    await MatchesRepo.update(match.id, { home_goal_minutes: homeMinutes, away_goal_minutes: awayMinutes });
   }
 
   if (result.unreconciled.length > 0) {
@@ -292,14 +315,14 @@ export async function syncMatchEvents(match: MatchRecord): Promise<MatchEventsSy
   const lineup = liveData ? extractLineup(liveData) : [];
 
   const durationMin = match.decided_by_penalties ? 120 : 90;
-  const { tallies, unmappedTypes } = aggregateTimeline(events, lineup, durationMin);
+  const { tallies, goalEvents, unmappedTypes } = aggregateTimeline(events, lineup, durationMin);
   summary.unmappedEventTypes = unmappedTypes;
   if (unmappedTypes.length > 0) {
     console.warn(`[fifa] ${unmappedTypes.length} tipos de evento sin mapear en ${match.fifa_match_id}:`,
       unmappedTypes.map(u => `${u.type}:"${u.description}"`).slice(0, 10).join(' | '));
   }
 
-  const saveResult = await reconcileAndSaveTallies(match, tallies, lineup, liveData, false);
+  const saveResult = await reconcileAndSaveTallies(match, tallies, goalEvents, lineup, liveData, false);
   summary.saved = saveResult.saved;
   summary.skippedConfirmed = saveResult.skippedConfirmed;
   summary.unreconciled = saveResult.unreconciled;
@@ -362,8 +385,8 @@ export async function syncLiveMatch(match: MatchRecord): Promise<LiveSyncSummary
     const lineup = extractLineup(liveData);
     // Minutos provisionales: lo jugado hasta ahora (la cifra real llega con el scrape final)
     const durationMin = ls.minute ?? 90;
-    const { tallies } = aggregateTimeline(timelineRes.value.Event ?? [], lineup, durationMin);
-    const saveResult = await reconcileAndSaveTallies(match, tallies, lineup, liveData, true);
+    const { tallies, goalEvents } = aggregateTimeline(timelineRes.value.Event ?? [], lineup, durationMin);
+    const saveResult = await reconcileAndSaveTallies(match, tallies, goalEvents, lineup, liveData, true);
     summary.eventsSaved = saveResult.saved;
   }
 

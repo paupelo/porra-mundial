@@ -35,6 +35,12 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE match_player_events ADD COLUMN IF NOT EXISTS is_live INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE team_points_log ADD COLUMN IF NOT EXISTS is_live INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE player_points_log ADD COLUMN IF NOT EXISTS is_live INTEGER NOT NULL DEFAULT 0',
+    // Portería a cero y goles encajados por tiempo en campo (junio 2026): minuto
+    // de entrada/salida por jugador y minutos de gol por equipo en cada partido.
+    'ALTER TABLE match_player_events ADD COLUMN IF NOT EXISTS minute_in INTEGER',
+    'ALTER TABLE match_player_events ADD COLUMN IF NOT EXISTS minute_out INTEGER',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_goal_minutes INTEGER[]',
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_goal_minutes INTEGER[]',
     // Ampliar el CHECK de source para admitir borradores del scraper de FIFA.
     // El par DROP+ADD es idempotente ejecutado en este orden.
     'ALTER TABLE match_player_events DROP CONSTRAINT IF EXISTS match_player_events_source_check',

@@ -26,7 +26,7 @@ Aplicación web para gestionar una porra (quiniela de fútbol) del Mundial 2026 
 | **PostgreSQL (pg)** | 8 | **Migrado de SQLite a Render Postgres (Frankfurt) en `c91797a`**. `DATABASE_URL` en `.env` |
 | bcryptjs | 2 | Hash de contraseñas del admin |
 | jsonwebtoken | 9 | Auth JWT para el panel de admin |
-| Jest + ts-jest | 29 | 134 tests (115 del motor + 19 del mapper de FIFA) |
+| Jest + ts-jest | 29 | 147 tests (motor + overlay en vivo + mapper de FIFA) |
 
 La capa de datos está aislada en `repositories/` (única que toca Postgres).
 
@@ -246,7 +246,9 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
 
 ### Tablas nuevas (todas aditivas; nada existente se modifica)
 
-- `matches` ganó columnas: `fifa_match_id` (único), `fifa_stage_id`, `group_name`, `venue`, `last_scraped_at`.
+- `matches` ganó columnas: `fifa_match_id` (único), `fifa_stage_id`, `group_name`, `venue`, `last_scraped_at`,
+  y (jun-2026) `home_goal_minutes` / `away_goal_minutes` (`INTEGER[]`, minutos de gol por equipo).
+- `match_player_events` ganó (jun-2026) `minute_in` / `minute_out` (intervalo en campo del jugador).
 - `team_points_log` / `player_points_log`: desglose de puntos por porra × partido (JSONB con los
   `ScoreLineItem` del motor, brutos, multiplicador, total). Son una **proyección derivada**: se
   regeneran completas en cada recálculo; la fuente de verdad sigue siendo eventos + porras.
@@ -319,6 +321,32 @@ La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres 
   eligieron (⭐ GANADOR / ⭐CAP / supl.) y barra de popularidad relativa. Se alimenta del nuevo
   endpoint público `GET /api/resumen-elegidos` (agrega `PorrasRepo.findAllFull()` —solo aprobadas—
   en servidor, una petición).
+
+### Portería a cero y gol encajado por intervalo en campo (junio 2026)
+
+Antes, "portería a cero" y "gol encajado" se calculaban con `minutes_played` y el
+**marcador final**: un titular sustituido en el 70' perdía la portería a cero si el equipo
+encajaba en el 85', y cargaba todos los goles del partido aunque ya no estuviera en el campo.
+Ahora se cuentan **solo los goles encajados en el intervalo que el jugador estuvo en juego**.
+
+- **Modelo (aditivo):** `match_player_events` ganó `minute_in` (0 = titular) y `minute_out`
+  (null = jugó hasta el final); `matches` ganó `home_goal_minutes` / `away_goal_minutes`
+  (`INTEGER[]`: minutos en los que marcó cada equipo, tiempo reglamentario/prórroga, **NO** tanda).
+  Un jugador del local encaja los `away_goal_minutes` y viceversa.
+- **Cálculo (`scoring/jugadores.ts`):** helper puro `goalsConcededWhileOnPitch()` —compartido
+  por `porteriaCero` y `golEncajado`— cuenta los goles del rival cuyo minuto cae en
+  `[minute_in, minute_out]`. **Fallback:** si `{home,away}_goal_minutes` es null (sin datos),
+  cae al recuento por marcador final → comportamiento idéntico al anterior (los 147 tests del
+  motor siguen pasando sin tocar fixtures).
+- **Scraper (`fifa/mapper.ts` + `sync.ts`):** `aggregateTimeline` deriva `minute_in`/`minute_out`
+  de las sustituciones y de la **roja** (una expulsión cuenta como salida), y devuelve `goalEvents`
+  (minuto + equipo FIFA + autogol). `sync.ts` los reparte en `home/away_goal_minutes` (el autogol
+  cuenta para el rival) y los guarda **salvo que el partido tenga eventos confirmados** por el admin.
+- **Admin:** `AdminPartidos.js` edita los minutos de gol por equipo (lista separada por comas);
+  `AdminEventos.js` y `AdminResultados.js` editan `minute_in` / `minute_out` por jugador
+  (campo "sale" vacío = jugó hasta el final).
+- **En vivo:** `porteriaCero` se sigue descartando en vivo (`FINAL_ONLY_CONCEPTS`); `golEncajado`
+  provisional usa el mismo intervalo con los goles capturados hasta el momento (minute_out aún null).
 
 ### Variables de entorno nuevas (ver `.env.example`)
 

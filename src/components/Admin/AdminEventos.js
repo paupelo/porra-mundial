@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiDelete } from '../../hooks/useApi';
 
-const EMPTY_EV = { player_id: '', team_id: '', minutes_played: 90, goals_open_play: 0, goals_penalty_play: 0, goals_penalty_shootout: 0, assists: 0, penalty_saved_play: 0, penalty_saved_shootout: 0, red_card: 0, penalty_conceded: 0, penalty_missed_play: 0, penalty_missed_shootout: 0, own_goals: 0, is_improvised_goalkeeper: 0 };
+const EMPTY_EV = { player_id: '', team_id: '', minutes_played: 90, minute_in: 0, minute_out: '', goals_open_play: 0, goals_penalty_play: 0, goals_penalty_shootout: 0, assists: 0, penalty_saved_play: 0, penalty_saved_shootout: 0, red_card: 0, penalty_conceded: 0, penalty_missed_play: 0, penalty_missed_shootout: 0, own_goals: 0, is_improvised_goalkeeper: 0 };
 
 function NumInput({ label, field, form, setForm }) {
   return (
@@ -38,7 +38,8 @@ export default function AdminEventos() {
   async function saveEvent() {
     if (!matchId || !form.player_id || !form.team_id) return setMsg('Elige partido, jugador y equipo');
     try {
-      await apiPost('/admin/events', { ...form, match_id: matchId, source: 'manual', is_confirmed: 1 });
+      const payload = { ...form, minute_out: form.minute_out === '' ? null : +form.minute_out };
+      await apiPost('/admin/events', { ...payload, match_id: matchId, source: 'manual', is_confirmed: 1 });
       setMsg('✓ Guardado'); setForm(EMPTY_EV);
       apiGet(`/admin/events/${matchId}`).then(setEvents);
     } catch (e) { setMsg('Error: ' + e.message); }
@@ -82,6 +83,11 @@ export default function AdminEventos() {
                 </select>
               </div>
               <NumInput label="Min. jug." field="minutes_played" form={form} setForm={setForm} />
+              <NumInput label="Min. entra" field="minute_in" form={form} setForm={setForm} />
+              <div className="form-group"><label>Min. sale</label>
+                <input type="number" min={0} value={form.minute_out} style={{ width: 60 }} placeholder="fin"
+                  onChange={e => setForm(f => ({ ...f, minute_out: e.target.value }))} />
+              </div>
               <NumInput label="Goles jgo" field="goals_open_play" form={form} setForm={setForm} />
               <NumInput label="Pen. jgo" field="goals_penalty_play" form={form} setForm={setForm} />
               <NumInput label="Pen. tanda" field="goals_penalty_shootout" form={form} setForm={setForm} />
@@ -112,12 +118,13 @@ export default function AdminEventos() {
               <button className="btn btn-success btn-sm" onClick={confirmAll}>✓ Confirmar todos</button>
             </div>
             <table className="admin-table">
-              <thead><tr><th>Jugador</th><th>Min</th><th>G</th><th>A</th><th>Origen</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>Jugador</th><th>Min</th><th>En campo</th><th>G</th><th>A</th><th>Origen</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {events.map(ev => (
                   <tr key={ev.id}>
                     <td>{playerMap[ev.player_id] ?? ev.player_id}</td>
                     <td>{ev.minutes_played}'</td>
+                    <td>{(ev.minute_in ?? 0)}'–{ev.minute_out != null ? `${ev.minute_out}'` : 'fin'}</td>
                     <td>{ev.goals_open_play + ev.goals_penalty_play}</td>
                     <td>{ev.assists}</td>
                     <td><span className={`badge badge-${ev.source === 'manual' ? 'confirmed' : 'draft'}`}>{ev.source}</span></td>

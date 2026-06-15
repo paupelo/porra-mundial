@@ -59,6 +59,14 @@ export interface MatchRecord {
   minute?: number | null;
   live_home_score?: number | null;
   live_away_score?: number | null;
+  /**
+   * Minutos (de tiempo reglamentario/prórroga, NO tanda) en los que cada equipo
+   * MARCÓ. El gol encajado de un jugador del equipo local se deriva de
+   * away_goal_minutes (y viceversa). null = sin datos de minutos: el motor cae
+   * al comportamiento previo basado en el marcador final.
+   */
+  home_goal_minutes?: number[] | null;
+  away_goal_minutes?: number[] | null;
 }
 
 export interface MatchPlayerEventRecord {
@@ -83,6 +91,18 @@ export interface MatchPlayerEventRecord {
   is_confirmed: 0 | 1;
   /** 1 = evento scrapeado en vivo: puntúa provisionalmente mientras el partido está live */
   is_live?: 0 | 1;
+  /**
+   * Minuto en el que el jugador entró al campo (0 = titular). Junto con
+   * minute_out define el intervalo en el que estuvo en juego, usado para
+   * portería a cero y goles encajados. null/undefined = titular (entró en el 0).
+   */
+  minute_in?: number | null;
+  /**
+   * Minuto en el que el jugador salió del campo (fue sustituido o expulsado).
+   * null/undefined = jugó hasta el final del partido. El descuento se suma al
+   * minuto (un 89'+x se almacena como 89+x).
+   */
+  minute_out?: number | null;
 }
 
 export interface TeamPhaseResultRecord {

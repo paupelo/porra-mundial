@@ -11,6 +11,22 @@ const VISTAS = [
   ['resumen', '📊 Resumen de elegidos'],
 ];
 
+// Indicador de cambio de posición respecto al último snapshot de ranking.
+// position_change: positivo = sube, negativo = baja, 0 = igual, null = sin snapshot.
+function PosChange({ change }) {
+  if (change === null || change === undefined || change === 0) return null;
+  const up = change > 0;
+  return (
+    <span
+      className="clas-poschange"
+      style={{ color: up ? '#16a34a' : '#dc2626', fontSize: '0.72rem', fontWeight: 800, marginLeft: 6 }}
+      title={up ? `Sube ${change} puesto(s) desde la jornada anterior` : `Baja ${Math.abs(change)} puesto(s) desde la jornada anterior`}
+    >
+      {up ? '↑' : '↓'}{Math.abs(change)}
+    </span>
+  );
+}
+
 // Mini barra de progreso compacta (selecciones / jugadores) de la jornada en curso
 function ProgBar({ icon, label, played, total }) {
   const pct = total > 0 ? Math.round((played / total) * 100) : 0;
@@ -139,10 +155,11 @@ export default function Clasificacion() {
                       onClick={() => setSelectedPorraId(entry.porraId)}
                       title="Ver desglose completo"
                     >
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
                         <span className={`pos-badge pos-${entry.position <= 3 ? entry.position : 'n'}`}>
                           {entry.position}
                         </span>
+                        <PosChange change={entry.position_change} />
                       </td>
                       <td className="participant-name">{entry.participantName}</td>
                       <td className="clas-prog-cell">

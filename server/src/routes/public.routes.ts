@@ -4,41 +4,28 @@ import { PorrasRepo } from '../repositories/porras.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
 import { PlayersRepo } from '../repositories/players.repo';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
+import { SnapshotsRepo } from '../repositories/snapshots.repo';
 import { computeProgresoJornada } from '../services/jornada';
+import { computeRankingEntries } from '../services/ranking';
 
 const router = Router();
 
 /** GET /api/clasificacion — ranking de porras aprobadas */
 router.get('/clasificacion', async (_req, res, next) => {
   try {
-    const scores = await ScoresRepo.findAll();
-    const approvedPorras = await PorrasRepo.findAllFull(); // solo approved
+    const [entries, snapshotPos] = await Promise.all([
+      computeRankingEntries(),
+      SnapshotsRepo.latestPositions(),
+    ]);
 
-    // Porras aprobadas sin puntuación todavía (0 pts, orden alfabético)
-    const scoredIds = new Set(scores.map(s => s.porra_id));
-    const unscored = approvedPorras
-      .filter(pf => !scoredIds.has(pf.porra.id))
-      .map(pf => ({ porra_id: pf.porra.id, total_points: 0, calculated_at: null }));
-
-    const allEntries = [...scores.filter(s => scoredIds.has(s.porra_id) && approvedPorras.some(pf => pf.porra.id === s.porra_id)), ...unscored]
-      .sort((a, b) => {
-        if (b.total_points !== a.total_points) return b.total_points - a.total_points;
-        // empate: orden alfabético
-        const nameA = approvedPorras.find(pf => pf.porra.id === a.porra_id)?.participant.name ?? '';
-        const nameB = approvedPorras.find(pf => pf.porra.id === b.porra_id)?.participant.name ?? '';
-        return nameA.localeCompare(nameB, 'es');
-      });
-
-    const result = allEntries.map((s, idx) => {
-      const pf = approvedPorras.find(p => p.porra.id === s.porra_id);
-      return {
-        position: idx + 1,
-        porraId: s.porra_id,
-        participantName: pf?.participant.name ?? '—',
-        totalPoints: s.total_points,
-        calculatedAt: s.calculated_at,
-      };
-    });
+    // position_change = posición_snapshot_anterior - posición_actual.
+    // Positivo = ha subido, negativo = ha bajado, 0 = igual, null = sin snapshot.
+    const result = entries.map(e => ({
+      ...e,
+      position_change: snapshotPos.has(e.porraId)
+        ? (snapshotPos.get(e.porraId) as number) - e.position
+        : null,
+    }));
     res.json(result);
   } catch (e) { next(e); }
 });

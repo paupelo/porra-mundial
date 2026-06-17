@@ -173,6 +173,20 @@ CREATE TABLE IF NOT EXISTS player_points_log (
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ─── Snapshots de clasificación (cambio de posición por jornada/ronda) ────────
+-- Aditiva: foto del ranking (posición + puntos por porra) en un momento dado.
+-- snapshot_type es libre ('jornada_1', 'octavos', …). Sirve para calcular si un
+-- participante ha subido o bajado respecto al último snapshot guardado.
+
+CREATE TABLE IF NOT EXISTS ranking_snapshots (
+  id            TEXT PRIMARY KEY,
+  porra_id      TEXT NOT NULL REFERENCES porras(id) ON DELETE CASCADE,
+  position      INTEGER NOT NULL,
+  points        DOUBLE PRECISION NOT NULL DEFAULT 0,
+  snapshot_type TEXT NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ─── Admin ───────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS admin_users (
@@ -197,3 +211,4 @@ CREATE INDEX IF NOT EXISTS idx_team_log_porra   ON team_points_log(porra_id);
 CREATE INDEX IF NOT EXISTS idx_team_log_match   ON team_points_log(match_id);
 CREATE INDEX IF NOT EXISTS idx_player_log_porra ON player_points_log(porra_id);
 CREATE INDEX IF NOT EXISTS idx_player_log_match ON player_points_log(match_id);
+CREATE INDEX IF NOT EXISTS idx_ranking_snapshots_created ON ranking_snapshots(created_at);

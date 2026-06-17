@@ -331,6 +331,33 @@ más que otros sin implicar que vayan ganando.
   (🛡️ X/Y selecciones, ⚽ X/Z jugadores). Responsive: en móvil se ocultan las barras y queda el X/Y.
   Polling 60 s junto al ranking; si el endpoint falla, el ranking sigue intacto.
 
+### Indicador de cambio de posición en Clasificación (jun-2026)
+
+Indicador visual ↑/↓ junto al puesto de cada participante en el ranking, que muestra cuántas
+posiciones ha subido o bajado respecto a la "jornada anterior" (último snapshot de ranking guardado).
+NO altera puntos ni scoring; es puramente informativo y aditivo.
+- **Tabla nueva** `ranking_snapshots` (`schema.sql`, `CREATE TABLE IF NOT EXISTS`, idempotente, se
+  crea sola en el arranque): `id, porra_id, position, points, snapshot_type` (libre: 'jornada_1',
+  'octavos'…), `created_at`. Índice `idx_ranking_snapshots_created`. Es una proyección histórica:
+  no toca ninguna tabla existente.
+- **Repo** `repositories/snapshots.repo.ts`: `save(snapshotType, entries)` inserta todas las filas
+  del lote en UNA sentencia (mismo `created_at` vía NOW() constante por sentencia) y
+  `latestPositions()` devuelve el Map porra_id→position del snapshot más reciente.
+- **Helper compartido** `services/ranking.ts` (`computeRankingEntries`): el orden del ranking
+  (puntos desc, empate alfabético, porras sin puntuar a 0) extraído sin cambios de `/clasificacion`;
+  lo usan tanto el endpoint público como el snapshot para garantizar el MISMO orden.
+- **Endpoint público:** `GET /api/clasificacion` ahora añade `position_change: number|null` a cada
+  entrada (= posición_snapshot − posición_actual; positivo sube, negativo baja, 0 igual, null si no
+  hay snapshot para esa porra). El resto de la respuesta es idéntico.
+- **Endpoint admin:** `POST /api/admin/ranking-snapshot` con `{ snapshot_type }` guarda la foto del
+  ranking actual de las porras aprobadas. Devuelve `{ ok, snapshot_type, count }`.
+- **Frontend Clasificación** (`Clasificacion.js`): componente `PosChange` que pinta `↑N` (verde
+  #16a34a) / `↓N` (rojo #dc2626) tras el badge de puesto; null o 0 → no renderiza nada. Sin cambios
+  en el resto de la fila.
+- **Admin** (`AdminDashboard.js`): banner "Guardar snapshot de ranking" con input de texto libre
+  para el `snapshot_type` y botón 📸, junto al de Recalcular. El admin lo pulsa antes de empezar
+  cada jornada/ronda para fijar la referencia del indicador.
+
 ### Subsecciones de Clasificación (junio 2026)
 
 La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres vistas:

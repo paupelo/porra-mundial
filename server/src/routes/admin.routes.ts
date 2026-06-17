@@ -7,6 +7,8 @@ import { EventsRepo } from '../repositories/events.repo';
 import { PorrasRepo, ParticipantsRepo } from '../repositories/porras.repo';
 import { sendRejectionEmail } from '../services/email';
 import { recalcularYGuardar } from '../services/recalc';
+import { computeRankingEntries } from '../services/ranking';
+import { SnapshotsRepo } from '../repositories/snapshots.repo';
 
 const router = Router();
 router.use(requireAdmin);
@@ -166,6 +168,20 @@ router.post('/porras/bulk-approve', async (req, res, next) => {
     const { ids } = req.body as { ids: string[] };
     for (const id of ids) await PorrasRepo.setStatus(id, 'approved');
     res.json({ approved: ids.length });
+  } catch (e) { next(e); }
+});
+
+// ── Snapshot de ranking (cambio de posición por jornada/ronda) ───────────────
+router.post('/ranking-snapshot', async (req, res, next) => {
+  try {
+    const snapshotType = String(req.body?.snapshot_type ?? '').trim();
+    if (!snapshotType) { res.status(400).json({ error: 'snapshot_type requerido' }); return; }
+    const entries = await computeRankingEntries();
+    await SnapshotsRepo.save(
+      snapshotType,
+      entries.map(e => ({ porraId: e.porraId, position: e.position, points: e.totalPoints })),
+    );
+    res.json({ ok: true, snapshot_type: snapshotType, count: entries.length });
   } catch (e) { next(e); }
 });
 

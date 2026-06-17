@@ -210,8 +210,11 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
   `FIFA_SEASON_ID` lo fija a mano si hiciera falta. Todo el scraping ocurre en el servidor.
 - **Códigos de evento verificados contra el partido inaugural real** (México 2-0 Sudáfrica, 11-jun-2026):
   `0` gol · `1` asistencia (evento propio) · `3`/`4` roja · `5` cambio · `2,7,8,12,15,16,18,26,57,71,78,79,83` ruido ignorado.
-  `34` autogol, `41` penalti fallado, `60` penalti parado y `Period=11` (tanda) quedan por verificar
-  cuando ocurran; hay respaldo por texto de la descripción y todo entra como borrador.
+  `34` autogol y `Period=11` (tanda) quedan por verificar cuando ocurran; hay respaldo por texto.
+  ⚠️ `41` y `60` NO son fiables como código: datos reales (Inglaterra-Croacia, 17-jun-2026) muestran
+  `Type 41` con descripción "convierte el penal" = penalti MARCADO (no fallado). Por eso para `41`/`60`
+  el desenlace se resuelve por la DESCRIPCIÓN (`penaltyOutcomeFromText`: gol vs fallo vs parada) y solo
+  se cae al supuesto (41=fallado, 60=parado) si el texto no lo aclara. Todo entra como borrador.
 - **Conciliación de nombres:** equipos por `country_code` FIFA (ARG, MEX…); jugadores por
   similitud de trigramas (`besoccer/reconciler.ts`) contra la plantilla del equipo, umbral 0.45.
   Los no conciliados se loguean y el admin los carga a mano.

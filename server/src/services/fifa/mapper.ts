@@ -217,6 +217,27 @@ const IGNORED_EVENT_TYPES = new Set([2, 7, 8, 12, 15, 16, 18, 26, 57, 71, 78, 79
  * códigos cambian. Lo no reconocido se ignora y se loguea aguas arriba
  * (el admin puede completarlo a mano).
  */
+/**
+ * Desenlace de un penalti a partir del texto del evento (es/en). Prioriza el
+ * gol porque FIFA usa "convierte/marca/anota el penal" para los convertidos.
+ * Devuelve null si el texto no aclara el resultado.
+ */
+function penaltyOutcomeFromText(d: string): 'penalty_goal' | 'penalty_missed' | 'penalty_saved' | null {
+  if (d.includes('convier') || d.includes('convirti') || d.includes('convertid') ||
+      d.includes('marca') || d.includes('marcad') || d.includes('anot') ||
+      d.includes('transform') || d.includes('gol') || d.includes('goal') || d.includes('scored')) {
+    return 'penalty_goal';
+  }
+  if (d.includes('parad') || d.includes('atajad') || d.includes('detien') || d.includes('detuv') || d.includes('saved')) {
+    return 'penalty_saved';
+  }
+  if (d.includes('fallad') || d.includes('falla') || d.includes('missed') || d.includes('err') ||
+      d.includes('fuera') || d.includes('desvia') || d.includes('poste') || d.includes('larguero')) {
+    return 'penalty_missed';
+  }
+  return null;
+}
+
 export function classifyEvent(type: unknown, description: string): string | null {
   const d = normalize(description);
   const isPenalty = d.includes('penal');
@@ -230,15 +251,24 @@ export function classifyEvent(type: unknown, description: string): string | null
     case 4: return 'red_card'; // segunda amarilla
     case 5: return 'substitution';
     case 34: return 'own_goal';
-    case 41: return 'penalty_missed';
-    case 60: return 'penalty_saved';
+    // Códigos 41/60 sin verificar: datos reales del Mundial 2026 muestran que
+    // Type 41 también marca un penalti CONVERTIDO ("KANE convierte el penal").
+    // Resolvemos por la descripción (gol/fallo/parada) y solo caemos al
+    // supuesto inicial (41=fallado, 60=parado) si el texto no lo aclara.
+    case 41:
+    case 60: {
+      const outcome = penaltyOutcomeFromText(d);
+      if (outcome) return outcome;
+      return type === 60 ? 'penalty_saved' : 'penalty_missed';
+    }
   }
 
   // Respaldo por texto (es/en)
   if (d.includes('autogol') || d.includes('own goal') || d.includes('propia puerta') || d.includes('propia meta')) return 'own_goal';
-  if (isPenalty && (d.includes('fallad') || d.includes('missed') || d.includes('falla') || d.includes('err'))) return 'penalty_missed';
-  if (isPenalty && (d.includes('parad') || d.includes('saved') || d.includes('detien') || d.includes('atajad'))) return 'penalty_saved';
-  if (isPenalty && (d.includes('gol') || d.includes('goal') || d.includes('marcad') || d.includes('convertid') || d.includes('scored'))) return 'penalty_goal';
+  if (isPenalty) {
+    const outcome = penaltyOutcomeFromText(d);
+    if (outcome) return outcome;
+  }
   if (d.includes('roja') || d.includes('red card') || d.includes('expuls')) return 'red_card';
   if (d.includes('segunda amarilla') || d.includes('second yellow') || d.includes('doble amarilla')) return 'red_card';
   if (d.includes('cambio') || d.includes('sustituc') || d.includes('substitut')) return 'substitution';

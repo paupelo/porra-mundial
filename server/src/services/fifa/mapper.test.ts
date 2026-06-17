@@ -125,6 +125,16 @@ describe('FIFA mapper — classifyEvent', () => {
     expect(classifyEvent(41, '')).toBe('penalty_missed');
     expect(classifyEvent(60, '')).toBe('penalty_saved');
   });
+  it('resuelve los códigos 41/60 por la descripción (penalti convertido vs fallado/parado)', () => {
+    // Caso real Mundial 2026: Type 41 con "convierte el penal" es un GOL, no un fallo.
+    expect(classifyEvent(41, '¡KANE (Inglaterra) convierte el penal!')).toBe('penalty_goal');
+    expect(classifyEvent(41, 'Penalti fallado por Kane')).toBe('penalty_missed');
+    expect(classifyEvent(60, 'El portero para el penalti')).toBe('penalty_saved');
+    expect(classifyEvent(60, 'Penalti convertido')).toBe('penalty_goal');
+    // Sin pistas en el texto → se mantiene el supuesto inicial por código.
+    expect(classifyEvent(41, 'Penalti')).toBe('penalty_missed');
+    expect(classifyEvent(60, 'Penalti')).toBe('penalty_saved');
+  });
   it('ignora en silencio el ruido del timeline (faltas, remates, córners…)', () => {
     expect(classifyEvent(2, 'Tarjeta amarilla')).toBe('ignore');
     expect(classifyEvent(12, 'Remate de Brian Gutiérrez')).toBe('ignore');

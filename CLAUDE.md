@@ -371,11 +371,19 @@ La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres 
   `GET /api/resumen-elegidos` (agrega `PorrasRepo.findAllFull()` —solo aprobadas— en servidor, una petición).
   - **Selector de ordenación (jun-2026):** toggle único que afecta a selecciones y jugadores:
     - **👥 Más elegidos** (por defecto) — orden por nº de porras que lo eligieron (sin cambios respecto a antes).
-    - **🔥 Más puntos** — reordena (en frontend) por puntuación acumulada en el torneo desc
-      (empates: más elegidos, luego alfabético) y muestra un badge verde "N pts" en cada tarjeta.
-    Los puntos vienen del endpoint: `PointsLogRepo.sumPointsByTeam()` / `sumPointsByPlayer()` suman
-    `points_total` de `team_points_log` / `player_points_log` agrupado por team/player (incluye
-    provisionales en vivo, igual que el ranking). Proyección de SOLO LECTURA; no recalcula ni toca scoring.
+    - **🔥 Más puntos** — reordena (en frontend) por la puntuación BRUTA AISLADA de cada
+      selección/jugador en el torneo desc (empates: más elegidos, luego alfabético) y muestra un
+      badge verde "N pts" en cada tarjeta.
+    Los puntos vienen del endpoint vía `services/elegidos-scores.ts` (`computeElegidosScores`), que
+    **reutiliza las funciones puras del motor** (`calcTeamScore`/`calcPlayerScore`, sin modificarlas)
+    con parámetros neutros porra-independientes: selección NO marcada como Ganador (sin ×2 winner; la
+    categoría sí es global a la selección); jugador titular sin capitanía ni MVP (sin ×2 ni ×0.5).
+    Es la puntuación que esa selección/jugador genera por sus PROPIOS resultados, **independiente de
+    cuántos participantes la eligieron** (p. ej. Suecia con 30 pts sale 30, no 30×nº de porras). Los
+    partidos en vivo cuentan provisionalmente igual que el ranking (`buildLiveInput` + descarte de
+    conceptos solo-finales). Proyección de SOLO LECTURA; no recalcula ni toca el scoring ni los datos.
+    ⚠️ Bug corregido (jun-2026): antes se sumaba `points_total` de `team/player_points_log` sobre
+    todas las porras, multiplicando los puntos por el nº de participantes que lo eligieron.
 
 ### Portería a cero y gol encajado por intervalo en campo (junio 2026)
 

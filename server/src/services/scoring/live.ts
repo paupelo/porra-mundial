@@ -17,7 +17,7 @@
 import { ClasificacionResult, MatchPlayerEventRecord, MatchRecord, ScoreLineItem } from '../../types';
 
 /** Conceptos que nunca puntúan en vivo (requieren el partido finalizado). */
-const FINAL_ONLY_CONCEPTS = ['porteriaCero', 'porteriaCero(portero)'];
+export const FINAL_ONLY_CONCEPTS = ['porteriaCero', 'porteriaCero(portero)'];
 
 export interface LiveInput {
   matches: MatchRecord[];

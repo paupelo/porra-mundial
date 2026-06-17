@@ -4,7 +4,7 @@ import { PorrasRepo } from '../repositories/porras.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
 import { PlayersRepo } from '../repositories/players.repo';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
-import { PointsLogRepo } from '../repositories/points-log.repo';
+import { computeElegidosScores } from '../services/elegidos-scores';
 import { computeProgresoJornada } from '../services/jornada';
 import { computeRankingEntries, computePreviousDayPositions } from '../services/ranking';
 
@@ -226,10 +226,11 @@ router.get('/calendario/:matchId', async (req, res, next) => {
  */
 router.get('/resumen-elegidos', async (_req, res, next) => {
   try {
-    const [teams, players, porras, teamPoints, playerPoints] = await Promise.all([
+    const [teams, players, porras, elegidosScores] = await Promise.all([
       TeamsRepo.findAll(), PlayersRepo.findAll(), PorrasRepo.findAllFull(),
-      PointsLogRepo.sumPointsByTeam(), PointsLogRepo.sumPointsByPlayer(),
+      computeElegidosScores(),
     ]);
+    const { teamPoints, playerPoints } = elegidosScores;
 
     const teamPickers = new Map<string, Array<{ name: string; is_winner: boolean }>>();
     const playerPickers = new Map<string, Array<{ name: string; role: string; is_captain: boolean }>>();

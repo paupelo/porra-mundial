@@ -280,12 +280,19 @@ export function aggregateTimeline(
   const goalEvents: GoalEvent[] = [];
   // Minuto de expulsión: un jugador con roja abandona el campo (salida).
   const redMinuteByPlayer = new Map<string, number>();
-  // Penaltis fallados/parados y penaltis marcados por jugador, para anular un
+  // Penaltis fallados/parados y goles marcados por jugador, para anular un
   // penalti fallado que el árbitro mandó repetir y acabó en gol (mismo jugador,
   // mismo minuto): contaría como fallo + gol cuando en realidad solo hay un gol.
+  // Se cuenta como repetición convertida CUALQUIER gol del mismo jugador en ese
+  // minuto (FIFA loguea el remate de la repetición como gol de penalti o, a
+  // veces, como gol normal / remate de rechace).
   interface PenaltyAttempt { shootout: boolean; minute: number; kind: 'missed' | 'saved'; }
   const pendingPenaltyFails = new Map<string, PenaltyAttempt[]>();
-  const penaltyGoals = new Map<string, Array<{ shootout: boolean; minute: number }>>();
+  const playerGoals = new Map<string, Array<{ shootout: boolean; minute: number }>>();
+  const recordGoal = (pid: string, isShootout: boolean, min: number) => {
+    if (!playerGoals.has(pid)) playerGoals.set(pid, []);
+    playerGoals.get(pid)!.push({ shootout: isShootout, minute: min });
+  };
 
   const getTally = (fifaPlayerId: string, fifaTeamId: string | null): PlayerTally => {
     if (!tallies.has(fifaPlayerId)) tallies.set(fifaPlayerId, emptyTally(fifaPlayerId, fifaTeamId));
@@ -323,12 +330,12 @@ export function aggregateTimeline(
       case 'goal':
         if (shootout) tally.goals_penalty_shootout++;
         else { tally.goals_open_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
+        recordGoal(playerId, shootout, minute);
         break;
       case 'penalty_goal':
         if (shootout) tally.goals_penalty_shootout++;
         else { tally.goals_penalty_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
-        if (!penaltyGoals.has(playerId)) penaltyGoals.set(playerId, []);
-        penaltyGoals.get(playerId)!.push({ shootout, minute });
+        recordGoal(playerId, shootout, minute);
         break;
       case 'own_goal':
         tally.own_goals++;
@@ -358,7 +365,7 @@ export function aggregateTimeline(
   // el mismo minuto (±1) es una repetición convertida: cuenta solo como gol, no
   // como fallo. El resto de fallos/paradas se contabilizan normalmente.
   for (const [playerId, fails] of pendingPenaltyFails) {
-    const goals = penaltyGoals.get(playerId) ?? [];
+    const goals = playerGoals.get(playerId) ?? [];
     const tally = getTally(playerId, null);
     for (const f of fails) {
       const retaken = goals.some(g => g.shootout === f.shootout && Math.abs(g.minute - f.minute) <= 1);

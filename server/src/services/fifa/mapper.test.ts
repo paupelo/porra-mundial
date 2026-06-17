@@ -250,14 +250,24 @@ describe('FIFA mapper — aggregateTimeline', () => {
     expect(t2.goals_penalty_play).toBe(1);
     expect(t2.penalty_saved_play).toBe(0);
 
-    // Un penalti fallado SIN repetición (sin gol en ese minuto) sí cuenta.
+    // La repetición puede llegar como gol NORMAL (sin "penalti" en la descripción):
+    // también debe anular el fallo.
     const events3 = [
+      { Type: 41, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Penalti fallado' }] },
+      { Type: 0,  IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "56'", Period: 5, EventDescription: [{ Description: 'Gol de Kane' }] },
+    ];
+    const t3 = aggregateTimeline(events3, lineup, 90).tallies.get('p1')!;
+    expect(t3.goals_open_play).toBe(1);
+    expect(t3.penalty_missed_play).toBe(0);
+
+    // Un penalti fallado SIN repetición (sin gol en ese minuto) sí cuenta.
+    const events4 = [
       { Type: 41, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Penalti fallado' }] },
       { Type: 0,  IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "80'", Period: 5, EventDescription: [{ Description: 'Gol de penalti' }] },
     ];
-    const t3 = aggregateTimeline(events3, lineup, 90).tallies.get('p1')!;
-    expect(t3.goals_penalty_play).toBe(1);
-    expect(t3.penalty_missed_play).toBe(1);
+    const t4 = aggregateTimeline(events4, lineup, 90).tallies.get('p1')!;
+    expect(t4.goals_penalty_play).toBe(1);
+    expect(t4.penalty_missed_play).toBe(1);
   });
 
   it('reporta tipos de evento desconocidos sin romperse', () => {

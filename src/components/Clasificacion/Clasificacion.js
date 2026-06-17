@@ -11,8 +11,8 @@ const VISTAS = [
   ['resumen', '📊 Resumen de elegidos'],
 ];
 
-// Indicador de cambio de posición respecto al último snapshot de ranking.
-// position_change: positivo = sube, negativo = baja, 0 = igual, null = sin snapshot.
+// Indicador de cambio de posición respecto al cierre del día anterior.
+// position_change: positivo = sube, negativo = baja, 0 = igual, null = sin día previo.
 function PosChange({ change }) {
   if (change === null || change === undefined || change === 0) return null;
   const up = change > 0;
@@ -20,7 +20,7 @@ function PosChange({ change }) {
     <span
       className="clas-poschange"
       style={{ color: up ? '#16a34a' : '#dc2626', fontSize: '0.72rem', fontWeight: 800, marginLeft: 6 }}
-      title={up ? `Sube ${change} puesto(s) desde la jornada anterior` : `Baja ${Math.abs(change)} puesto(s) desde la jornada anterior`}
+      title={up ? `Sube ${change} puesto(s) respecto al día anterior` : `Baja ${Math.abs(change)} puesto(s) respecto al día anterior`}
     >
       {up ? '↑' : '↓'}{Math.abs(change)}
     </span>

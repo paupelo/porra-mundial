@@ -4,26 +4,25 @@ import { PorrasRepo } from '../repositories/porras.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
 import { PlayersRepo } from '../repositories/players.repo';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
-import { SnapshotsRepo } from '../repositories/snapshots.repo';
 import { computeProgresoJornada } from '../services/jornada';
-import { computeRankingEntries } from '../services/ranking';
+import { computeRankingEntries, computePreviousDayPositions } from '../services/ranking';
 
 const router = Router();
 
 /** GET /api/clasificacion — ranking de porras aprobadas */
 router.get('/clasificacion', async (_req, res, next) => {
   try {
-    const [entries, snapshotPos] = await Promise.all([
+    const [entries, prevDayPos] = await Promise.all([
       computeRankingEntries(),
-      SnapshotsRepo.latestPositions(),
+      computePreviousDayPositions(),
     ]);
 
-    // position_change = posición_snapshot_anterior - posición_actual.
-    // Positivo = ha subido, negativo = ha bajado, 0 = igual, null = sin snapshot.
+    // position_change = posición al cierre del DÍA ANTERIOR − posición actual.
+    // Positivo = ha subido, negativo = ha bajado, 0 = igual, null = sin día previo.
     const result = entries.map(e => ({
       ...e,
-      position_change: snapshotPos.has(e.porraId)
-        ? (snapshotPos.get(e.porraId) as number) - e.position
+      position_change: prevDayPos.has(e.porraId)
+        ? (prevDayPos.get(e.porraId) as number) - e.position
         : null,
     }));
     res.json(result);

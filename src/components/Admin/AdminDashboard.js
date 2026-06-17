@@ -23,9 +23,6 @@ export default function AdminDashboard({ onLogout }) {
   const [section, setSection] = useState('selecciones');
   const [recalcMsg, setRecalcMsg] = useState('');
   const [recalcLoading, setRecalcLoading] = useState(false);
-  const [snapType, setSnapType] = useState('jornada_1');
-  const [snapMsg, setSnapMsg] = useState('');
-  const [snapLoading, setSnapLoading] = useState(false);
 
   async function handleRecalcular() {
     setRecalcLoading(true); setRecalcMsg('');
@@ -36,20 +33,6 @@ export default function AdminDashboard({ onLogout }) {
       setRecalcMsg(`Error: ${e.message}`);
     } finally {
       setRecalcLoading(false);
-    }
-  }
-
-  async function handleSnapshot() {
-    const tipo = snapType.trim();
-    if (!tipo) { setSnapMsg('Indica un tipo de snapshot (ej: jornada_1, octavos…)'); return; }
-    setSnapLoading(true); setSnapMsg('');
-    try {
-      const r = await apiPost('/admin/ranking-snapshot', { snapshot_type: tipo });
-      setSnapMsg(`✓ Snapshot "${r.snapshot_type}" guardado (${r.count} porras)`);
-    } catch (e) {
-      setSnapMsg(`Error: ${e.message}`);
-    } finally {
-      setSnapLoading(false);
     }
   }
 
@@ -95,26 +78,6 @@ export default function AdminDashboard({ onLogout }) {
           <button className="btn btn-primary" onClick={handleRecalcular} disabled={recalcLoading}>
             {recalcLoading ? '…' : '↺ Recalcular'}
           </button>
-        </div>
-
-        <div className="recalc-banner">
-          <div>
-            <h3>Guardar snapshot de ranking</h3>
-            <p>Foto del ranking actual para calcular el cambio de posición (↑/↓) en la Clasificación. Hazlo antes de empezar cada jornada o ronda.</p>
-            {snapMsg && <p style={{ fontWeight: 700, marginTop: 6 }}>{snapMsg}</p>}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="text"
-              value={snapType}
-              onChange={e => setSnapType(e.target.value)}
-              placeholder="jornada_1, octavos…"
-              style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', minWidth: 160 }}
-            />
-            <button className="btn btn-primary" onClick={handleSnapshot} disabled={snapLoading}>
-              {snapLoading ? '…' : '📸 Guardar snapshot'}
-            </button>
-          </div>
         </div>
 
         {views[section]}

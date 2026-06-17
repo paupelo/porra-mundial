@@ -334,29 +334,28 @@ más que otros sin implicar que vayan ganando.
 ### Indicador de cambio de posición en Clasificación (jun-2026)
 
 Indicador visual ↑/↓ junto al puesto de cada participante en el ranking, que muestra cuántas
-posiciones ha subido o bajado respecto a la "jornada anterior" (último snapshot de ranking guardado).
-NO altera puntos ni scoring; es puramente informativo y aditivo.
-- **Tabla nueva** `ranking_snapshots` (`schema.sql`, `CREATE TABLE IF NOT EXISTS`, idempotente, se
-  crea sola en el arranque): `id, porra_id, position, points, snapshot_type` (libre: 'jornada_1',
-  'octavos'…), `created_at`. Índice `idx_ranking_snapshots_created`. Es una proyección histórica:
-  no toca ninguna tabla existente.
-- **Repo** `repositories/snapshots.repo.ts`: `save(snapshotType, entries)` inserta todas las filas
-  del lote en UNA sentencia (mismo `created_at` vía NOW() constante por sentencia) y
-  `latestPositions()` devuelve el Map porra_id→position del snapshot más reciente.
-- **Helper compartido** `services/ranking.ts` (`computeRankingEntries`): el orden del ranking
-  (puntos desc, empate alfabético, porras sin puntuar a 0) extraído sin cambios de `/clasificacion`;
-  lo usan tanto el endpoint público como el snapshot para garantizar el MISMO orden.
-- **Endpoint público:** `GET /api/clasificacion` ahora añade `position_change: number|null` a cada
-  entrada (= posición_snapshot − posición_actual; positivo sube, negativo baja, 0 igual, null si no
-  hay snapshot para esa porra). El resto de la respuesta es idéntico.
-- **Endpoint admin:** `POST /api/admin/ranking-snapshot` con `{ snapshot_type }` guarda la foto del
-  ranking actual de las porras aprobadas. Devuelve `{ ok, snapshot_type, count }`.
+posiciones ha subido o bajado respecto al **cierre del día anterior** del Mundial (antes de los
+partidos de hoy). Automático, sin acción del admin. NO altera puntos ni scoring; es puramente
+informativo, aditivo y de SOLO LECTURA (no hay tabla nueva ni se persiste nada).
+- **"Día anterior" determinista, sin snapshots:** se recalcula con el motor puro la clasificación
+  considerando solo los partidos `finished` cuyo día es ANTERIOR al de hoy, y se compara con la
+  posición actual. No depende de timing (sirve aunque el proceso free duerma) ni de datos guardados:
+  funciona retroactivamente con lo que haya en la BD.
+- **Zona horaria:** los partidos se agrupan por día en `RANKING_DAY_TZ` (env, por defecto
+  `Europe/Madrid`, coherente con cómo el Calendario agrupa por día local). `match_date` se almacena
+  en UTC; el bucketing usa `Intl.DateTimeFormat('en-CA', { timeZone })` → `YYYY-MM-DD` comparable.
+- **`services/ranking.ts`** (con `computeRankingEntries` + `computePreviousDayPositions`):
+  `computeRankingEntries` arma el ranking actual desde la caché `porra_scores` (incluye provisionales
+  en vivo); `computePreviousDayPositions` filtra `MatchesRepo`/`EventsRepo` a los partidos de días
+  previos, reusa `buildLiveInput`+`calcularClasificacion`+`applyLiveOverlay` (sin partidos live →
+  son no-op) y ordena con `rankByPoints`, el MISMO comparador (puntos desc, empate alfabético) que
+  el ranking actual, para que los empates no produzcan cambios de posición falsos.
+- **Endpoint público:** `GET /api/clasificacion` añade `position_change: number|null` a cada entrada
+  (= posición_día_anterior − posición_actual; positivo sube, negativo baja, 0 igual, null si no hay
+  ningún día previo con partidos, p. ej. el primer día del torneo). El resto de la respuesta es igual.
 - **Frontend Clasificación** (`Clasificacion.js`): componente `PosChange` que pinta `↑N` (verde
   #16a34a) / `↓N` (rojo #dc2626) tras el badge de puesto; null o 0 → no renderiza nada. Sin cambios
-  en el resto de la fila.
-- **Admin** (`AdminDashboard.js`): banner "Guardar snapshot de ranking" con input de texto libre
-  para el `snapshot_type` y botón 📸, junto al de Recalcular. El admin lo pulsa antes de empezar
-  cada jornada/ronda para fijar la referencia del indicador.
+  en el resto de la fila ni en el diseño.
 
 ### Subsecciones de Clasificación (junio 2026)
 

@@ -384,6 +384,17 @@ La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres 
     conceptos solo-finales). Proyección de SOLO LECTURA; no recalcula ni toca el scoring ni los datos.
     ⚠️ Bug corregido (jun-2026): antes se sumaba `points_total` de `team/player_points_log` sobre
     todas las porras, multiplicando los puntos por el nº de participantes que lo eligieron.
+    - **Desglose de puntos en el acordeón (jun-2026, SOLO en "Más puntos"):** al desplegar una
+      selección/jugador aparece primero "📊 Puntos obtenidos" (desglose concepto a concepto por
+      partido) y debajo "🙋 Elegido por (N)" con los participantes. El desglose reutiliza el
+      componente `TablaPorPartido` (el mismo del detalle de participante): agrupa los `ScoreLineItem`
+      por partido (Rival/Resultado/Fase/Brutos/Mult./Pts) con detalle expandible. El endpoint
+      `/api/resumen-elegidos` añade `items` (los `ScoreLineItem` del motor) por selección/jugador,
+      producidos por `computeElegidosScores` (mismos parámetros neutros que `points`); el frontend
+      también pide `/api/matches` para resolver rival/resultado. En **"Más elegidos"** el acordeón
+      sigue mostrando SOLO los participantes, sin cambios. Clases `res-body-col` / `res-subtitulo` /
+      `res-chips` en `ResumenElegidos.css`; el desglose hace scroll horizontal en móvil (regla
+      scopeada, no toca el `.breakdown-wrap` del detalle de participante).
 
 ### Portería a cero y gol encajado por intervalo en campo (junio 2026)
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiGet } from '../../hooks/useApi';
+import { TablaPorPartido } from './HistorialPorPartido';
 import './ResumenElegidos.css';
 
 // Resumen de elegidos: todas las selecciones (y los jugadores elegidos)
@@ -13,7 +14,7 @@ function fmtPts(n) {
   return String(Math.round((n ?? 0) * 100) / 100);
 }
 
-function TarjetaResumen({ nombre, extraNombre, meta, count, maxCount, chips, points, showPoints }) {
+function TarjetaResumen({ nombre, extraNombre, meta, count, maxCount, chips, points, showPoints, breakdown }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="res-card">
@@ -26,9 +27,22 @@ function TarjetaResumen({ nombre, extraNombre, meta, count, maxCount, chips, poi
       </div>
       <div className="res-bar"><div style={{ width: `${maxCount > 0 ? (count / maxCount) * 100 : 0}%` }} /></div>
       {open && (
-        count === 0
-          ? <div className="res-body"><span className="res-vacio">Nadie lo ha elegido.</span></div>
-          : <div className="res-body">{chips}</div>
+        breakdown != null
+          // Vista "Más puntos": primero el desglose de puntos, luego quiénes lo eligieron.
+          ? (
+            <div className="res-body res-body-col">
+              <div className="res-subtitulo">📊 Puntos obtenidos</div>
+              {breakdown}
+              <div className="res-subtitulo">🙋 Elegido por{count > 0 ? ` (${count})` : ''}</div>
+              {count === 0
+                ? <span className="res-vacio">Nadie lo ha elegido.</span>
+                : <div className="res-chips">{chips}</div>}
+            </div>
+          )
+          // Vista "Más elegidos": exactamente igual que siempre (solo los participantes).
+          : (count === 0
+            ? <div className="res-body"><span className="res-vacio">Nadie lo ha elegido.</span></div>
+            : <div className="res-body">{chips}</div>)
       )}
     </div>
   );
@@ -36,12 +50,15 @@ function TarjetaResumen({ nombre, extraNombre, meta, count, maxCount, chips, poi
 
 export default function ResumenElegidos() {
   const [data, setData] = useState(null);
+  const [matchesById, setMatchesById] = useState(null);
   const [error, setError] = useState(null);
   const [seccion, setSeccion] = useState('selecciones');
   const [orden, setOrden] = useState('elegidos'); // 'elegidos' | 'puntos'
 
   useEffect(() => {
     apiGet('/resumen-elegidos').then(setData).catch(e => setError(e.message));
+    // Partidos para resolver rival/resultado en el desglose de "Más puntos".
+    apiGet('/matches').then(ms => setMatchesById(new Map(ms.map(m => [m.id, m])))).catch(() => {});
   }, []);
 
   if (error) return <div className="clas-empty"><p>⚠️ No se pudo cargar el resumen.</p></div>;
@@ -108,6 +125,7 @@ export default function ResumenElegidos() {
           count={t.count}
           points={t.points}
           showPoints={porPuntos}
+          breakdown={porPuntos ? <TablaPorPartido items={t.items ?? []} matchesById={matchesById} teamId={t.team_id} /> : null}
           maxCount={maxTeams}
           chips={t.pickers.map((p, i) => (
             <span key={i} className={`res-chip${p.is_winner ? ' ganador' : ''}`} title={p.is_winner ? 'Lo eligió como Ganador del Mundial' : undefined}>
@@ -126,6 +144,7 @@ export default function ResumenElegidos() {
           count={j.count}
           points={j.points}
           showPoints={porPuntos}
+          breakdown={porPuntos ? <TablaPorPartido items={j.items ?? []} matchesById={matchesById} /> : null}
           maxCount={maxPlayers}
           chips={j.pickers.map((p, i) => (
             <span key={i} className="res-chip">

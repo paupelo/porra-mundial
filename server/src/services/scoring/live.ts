@@ -54,7 +54,13 @@ export function buildLiveInput(matches: MatchRecord[], events: MatchPlayerEventR
   return { matches: effectiveMatches, events: effectiveEvents, liveIds };
 }
 
-function transformItems(items: ScoreLineItem[], liveIds: Set<string>): ScoreLineItem[] {
+/**
+ * Aplica el overlay en vivo a un desglose: descarta los conceptos solo-finales
+ * de los partidos en vivo y marca el resto de sus ítems como provisionales.
+ * Función pura.
+ */
+export function transformItems(items: ScoreLineItem[], liveIds: Set<string>): ScoreLineItem[] {
+  if (liveIds.size === 0) return items;
   return items
     .filter(it => !(it.matchId && liveIds.has(it.matchId) && FINAL_ONLY_CONCEPTS.includes(it.concept)))
     .map(it => (it.matchId && liveIds.has(it.matchId) ? { ...it, isLive: true } : it));

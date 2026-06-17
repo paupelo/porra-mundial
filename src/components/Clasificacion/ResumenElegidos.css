@@ -33,6 +33,22 @@
   padding: 10px 16px 14px; border-top: 1px solid #eef2f7;
   display: flex; flex-wrap: wrap; gap: 6px;
 }
+/* Vista "Más puntos": apilamos desglose y participantes en columna. */
+.res-body-col { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+.res-subtitulo {
+  font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  color: #64748b; margin: 4px 0 2px;
+}
+.res-subtitulo:not(:first-child) { margin-top: 12px; }
+.res-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* El desglose dentro del acordeón: scroll horizontal en pantallas estrechas
+   (solo aquí; no toca el .breakdown-wrap que usa el detalle de participante). */
+.res-body-col .breakdown-wrap { overflow-x: auto; margin-top: 8px; }
+@media (max-width: 768px) {
+  .res-body-col .breakdown-table { font-size: 0.74rem; }
+  .res-body-col .breakdown-table td,
+  .res-body-col .breakdown-table th { padding: 6px 8px; }
+}
 .res-chip {
   font-size: 0.78rem; font-weight: 600; color: #1e293b;
   background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;

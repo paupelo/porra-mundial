@@ -230,7 +230,7 @@ router.get('/resumen-elegidos', async (_req, res, next) => {
       TeamsRepo.findAll(), PlayersRepo.findAll(), PorrasRepo.findAllFull(),
       computeElegidosScores(),
     ]);
-    const { teamPoints, playerPoints } = elegidosScores;
+    const { teamScores, playerScores } = elegidosScores;
 
     const teamPickers = new Map<string, Array<{ name: string; is_winner: boolean }>>();
     const playerPickers = new Map<string, Array<{ name: string; role: string; is_captain: boolean }>>();
@@ -249,7 +249,8 @@ router.get('/resumen-elegidos', async (_req, res, next) => {
       .map(t => ({
         team_id: t.id, team_name: t.name, category: t.category,
         count: (teamPickers.get(t.id) ?? []).length,
-        points: teamPoints.get(t.id) ?? 0,
+        points: teamScores.get(t.id)?.points ?? 0,
+        items: teamScores.get(t.id)?.items ?? [],
         pickers: teamPickers.get(t.id) ?? [],
       }))
       .sort((a, b) => b.count - a.count || a.team_name.localeCompare(b.team_name, 'es'));
@@ -265,7 +266,8 @@ router.get('/resumen-elegidos', async (_req, res, next) => {
           position: p?.position ?? '',
           team_name: p ? (teamById.get(p.team_id)?.name ?? '') : '',
           count: pickers.length,
-          points: playerPoints.get(pid) ?? 0,
+          points: playerScores.get(pid)?.points ?? 0,
+          items: playerScores.get(pid)?.items ?? [],
           pickers,
         };
       })

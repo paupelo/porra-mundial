@@ -1,6 +1,6 @@
 import { calcTeamScore } from './scoring/selecciones';
 import { calcPlayerScore } from './scoring/jugadores';
-import { buildLiveInput, FINAL_ONLY_CONCEPTS } from './scoring/live';
+import { buildLiveInput, transformItems } from './scoring/live';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
 import { EventsRepo } from '../repositories/events.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
@@ -10,7 +10,7 @@ import { MatchPlayerEventRecord, Position, ScoreLineItem } from '../types';
 /**
  * Puntuación BRUTA AISLADA de cada selección y cada jugador en el torneo: los
  * puntos que han generado por sus PROPIOS resultados, independientemente de
- * cuántos participantes los eligieron.
+ * cuántos participantes los eligieron, junto con su desglose concepto a concepto.
  *
  * Reutiliza las funciones puras del motor (no las modifica) con parámetros
  * neutros, porra-independientes:
@@ -21,17 +21,19 @@ import { MatchPlayerEventRecord, Position, ScoreLineItem } from '../types';
  * Los partidos en vivo cuentan provisionalmente igual que en el ranking (vía
  * buildLiveInput + descarte de conceptos solo-finales como portería a cero).
  */
-export interface ElegidosScores {
-  teamPoints: Map<string, number>;
-  playerPoints: Map<string, number>;
+export interface ElegidoScore {
+  points: number;
+  /** Desglose del motor (mismo ScoreLineItem[] que usa la pestaña de detalle). */
+  items: ScoreLineItem[];
 }
 
-// Total de un desglose descartando los conceptos solo-finales de los partidos
-// en vivo (misma regla que applyLiveOverlay, pero solo necesitamos el total).
-function liveAdjustedTotal(items: ScoreLineItem[], liveIds: Set<string>): number {
-  return items
-    .filter(it => !(it.matchId && liveIds.has(it.matchId) && FINAL_ONLY_CONCEPTS.includes(it.concept)))
-    .reduce((s, i) => s + i.finalPoints, 0);
+export interface ElegidosScores {
+  teamScores: Map<string, ElegidoScore>;
+  playerScores: Map<string, ElegidoScore>;
+}
+
+function total(items: ScoreLineItem[]): number {
+  return items.reduce((s, i) => s + i.finalPoints, 0);
 }
 
 export async function computeElegidosScores(): Promise<ElegidosScores> {
@@ -48,19 +50,21 @@ export async function computeElegidosScores(): Promise<ElegidosScores> {
     eventsByPlayer.get(ev.player_id)!.set(ev.match_id, ev);
   }
 
-  const teamPoints = new Map<string, number>();
+  const teamScores = new Map<string, ElegidoScore>();
   for (const team of teams) {
     const res = calcTeamScore(team, false, effMatches, phaseResults);
-    teamPoints.set(team.id, liveAdjustedTotal(res.items, liveIds));
+    const items = transformItems(res.items, liveIds); // overlay en vivo (solo-finales fuera)
+    teamScores.set(team.id, { points: total(items), items });
   }
 
-  const playerPoints = new Map<string, number>();
+  const playerScores = new Map<string, ElegidoScore>();
   for (const player of players) {
     const evs = eventsByPlayer.get(player.id) ?? new Map<string, MatchPlayerEventRecord>();
     const res = calcPlayerScore(
       player, 'titular', player.position as Position, false, [], effMatches, evs, phaseResults, false);
-    playerPoints.set(player.id, liveAdjustedTotal(res.items, liveIds));
+    const items = transformItems(res.items, liveIds);
+    playerScores.set(player.id, { points: total(items), items });
   }
 
-  return { teamPoints, playerPoints };
+  return { teamScores, playerScores };
 }

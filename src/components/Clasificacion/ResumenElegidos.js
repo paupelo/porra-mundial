@@ -9,13 +9,18 @@ import './ResumenElegidos.css';
 const CAT_LABELS = { favoritos: 'Favoritos', sorpresas: 'Sorpresas', petardazos: 'Petardazos', caca: 'Caca de la Vaca' };
 const POS_LABELS = { portero: '🧤 POR', defensa: '🛡 DEF', medio: '⚙️ MED', delantero: '⚽ DEL' };
 
-function TarjetaResumen({ nombre, extraNombre, meta, count, maxCount, chips }) {
+function fmtPts(n) {
+  return String(Math.round((n ?? 0) * 100) / 100);
+}
+
+function TarjetaResumen({ nombre, extraNombre, meta, count, maxCount, chips, points, showPoints }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="res-card">
       <div className="res-card-header" onClick={() => setOpen(o => !o)}>
         <span className="res-nombre">{nombre} {extraNombre}</span>
         {meta}
+        {showPoints && <span className="res-points" title="Puntos acumulados en el torneo">{fmtPts(points)} pts</span>}
         <span className="res-count">{count} {count === 1 ? 'porra' : 'porras'}</span>
         <span className="res-chevron">{open ? '▲' : '▼'}</span>
       </div>
@@ -33,6 +38,7 @@ export default function ResumenElegidos() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [seccion, setSeccion] = useState('selecciones');
+  const [orden, setOrden] = useState('elegidos'); // 'elegidos' | 'puntos'
 
   useEffect(() => {
     apiGet('/resumen-elegidos').then(setData).catch(e => setError(e.message));
@@ -41,12 +47,20 @@ export default function ResumenElegidos() {
   if (error) return <div className="clas-empty"><p>⚠️ No se pudo cargar el resumen.</p></div>;
   if (!data) return <div className="clas-loading">Cargando resumen…</div>;
 
+  const porPuntos = orden === 'puntos';
+  // "Más elegidos" = orden del backend (por count) intacto. "Más puntos" = re-orden
+  // por puntuación acumulada desc (empates: más elegidos, luego alfabético).
+  const ordenarPorPuntos = (arr, nameKey) => [...arr].sort(
+    (a, b) => (b.points ?? 0) - (a.points ?? 0) || b.count - a.count || a[nameKey].localeCompare(b[nameKey], 'es'));
+  const teams = porPuntos ? ordenarPorPuntos(data.teams, 'team_name') : data.teams;
+  const players = porPuntos ? ordenarPorPuntos(data.players, 'player_name') : data.players;
+
   const maxTeams = data.teams[0]?.count ?? 0;
   const maxPlayers = data.players[0]?.count ?? 0;
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {[['selecciones', `🏳️ Selecciones (${data.teams.length})`], ['jugadores', `👤 Jugadores (${data.players.length})`]].map(([id, label]) => (
           <button
             key={id}
@@ -67,12 +81,33 @@ export default function ResumenElegidos() {
         </span>
       </div>
 
-      {seccion === 'selecciones' && data.teams.map(t => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Ordenar por:</span>
+        {[['elegidos', '👥 Más elegidos'], ['puntos', '🔥 Más puntos']].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setOrden(id)}
+            style={{
+              padding: '6px 16px', borderRadius: 20, cursor: 'pointer',
+              fontWeight: 700, fontSize: '0.8rem',
+              border: orden === id ? '1.5px solid #166534' : '1.5px solid #e2e8f0',
+              background: orden === id ? '#dcfce7' : '#fff',
+              color: orden === id ? '#166534' : '#64748b',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {seccion === 'selecciones' && teams.map(t => (
         <TarjetaResumen
           key={t.team_id}
           nombre={t.team_name}
           meta={<span className={`sel-cat cat-${t.category}`}>{CAT_LABELS[t.category] ?? t.category}</span>}
           count={t.count}
+          points={t.points}
+          showPoints={porPuntos}
           maxCount={maxTeams}
           chips={t.pickers.map((p, i) => (
             <span key={i} className={`res-chip${p.is_winner ? ' ganador' : ''}`} title={p.is_winner ? 'Lo eligió como Ganador del Mundial' : undefined}>
@@ -82,13 +117,15 @@ export default function ResumenElegidos() {
         />
       ))}
 
-      {seccion === 'jugadores' && data.players.map(j => (
+      {seccion === 'jugadores' && players.map(j => (
         <TarjetaResumen
           key={j.player_id}
           nombre={j.player_name}
           extraNombre={<span className="res-meta">· {j.team_name}</span>}
           meta={<span className="jugador-pos">{POS_LABELS[j.position] ?? j.position}</span>}
           count={j.count}
+          points={j.points}
+          showPoints={porPuntos}
           maxCount={maxPlayers}
           chips={j.pickers.map((p, i) => (
             <span key={i} className="res-chip">

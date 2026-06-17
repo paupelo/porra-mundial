@@ -4,6 +4,7 @@ import { PorrasRepo } from '../repositories/porras.repo';
 import { TeamsRepo } from '../repositories/teams.repo';
 import { PlayersRepo } from '../repositories/players.repo';
 import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
+import { PointsLogRepo } from '../repositories/points-log.repo';
 import { computeProgresoJornada } from '../services/jornada';
 import { computeRankingEntries, computePreviousDayPositions } from '../services/ranking';
 
@@ -225,8 +226,9 @@ router.get('/calendario/:matchId', async (req, res, next) => {
  */
 router.get('/resumen-elegidos', async (_req, res, next) => {
   try {
-    const [teams, players, porras] = await Promise.all([
+    const [teams, players, porras, teamPoints, playerPoints] = await Promise.all([
       TeamsRepo.findAll(), PlayersRepo.findAll(), PorrasRepo.findAllFull(),
+      PointsLogRepo.sumPointsByTeam(), PointsLogRepo.sumPointsByPlayer(),
     ]);
 
     const teamPickers = new Map<string, Array<{ name: string; is_winner: boolean }>>();
@@ -246,6 +248,7 @@ router.get('/resumen-elegidos', async (_req, res, next) => {
       .map(t => ({
         team_id: t.id, team_name: t.name, category: t.category,
         count: (teamPickers.get(t.id) ?? []).length,
+        points: teamPoints.get(t.id) ?? 0,
         pickers: teamPickers.get(t.id) ?? [],
       }))
       .sort((a, b) => b.count - a.count || a.team_name.localeCompare(b.team_name, 'es'));
@@ -261,6 +264,7 @@ router.get('/resumen-elegidos', async (_req, res, next) => {
           position: p?.position ?? '',
           team_name: p ? (teamById.get(p.team_id)?.name ?? '') : '',
           count: pickers.length,
+          points: playerPoints.get(pid) ?? 0,
           pickers,
         };
       })

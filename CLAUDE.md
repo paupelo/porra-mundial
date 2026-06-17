@@ -366,10 +366,16 @@ La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres 
   coincidencias entre las porras comparadas se resaltan con 🤝 y fondo ámbar. Datos de los
   endpoints públicos existentes (`/api/clasificacion` + `/api/porras/:id`). Scroll horizontal en móvil.
 - **📊 Resumen de elegidos** (`ResumenElegidos.js/.css`) — todas las selecciones y los jugadores
-  elegidos ordenados por popularidad, con acordeón por equipo/jugador mostrando quiénes los
-  eligieron (⭐ GANADOR / ⭐CAP / supl.) y barra de popularidad relativa. Se alimenta del nuevo
-  endpoint público `GET /api/resumen-elegidos` (agrega `PorrasRepo.findAllFull()` —solo aprobadas—
-  en servidor, una petición).
+  elegidos, con acordeón por equipo/jugador mostrando quiénes los eligieron
+  (⭐ GANADOR / ⭐CAP / supl.) y barra de popularidad relativa. Se alimenta del endpoint público
+  `GET /api/resumen-elegidos` (agrega `PorrasRepo.findAllFull()` —solo aprobadas— en servidor, una petición).
+  - **Selector de ordenación (jun-2026):** toggle único que afecta a selecciones y jugadores:
+    - **👥 Más elegidos** (por defecto) — orden por nº de porras que lo eligieron (sin cambios respecto a antes).
+    - **🔥 Más puntos** — reordena (en frontend) por puntuación acumulada en el torneo desc
+      (empates: más elegidos, luego alfabético) y muestra un badge verde "N pts" en cada tarjeta.
+    Los puntos vienen del endpoint: `PointsLogRepo.sumPointsByTeam()` / `sumPointsByPlayer()` suman
+    `points_total` de `team_points_log` / `player_points_log` agrupado por team/player (incluye
+    provisionales en vivo, igual que el ranking). Proyección de SOLO LECTURA; no recalcula ni toca scoring.
 
 ### Portería a cero y gol encajado por intervalo en campo (junio 2026)
 

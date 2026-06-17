@@ -79,4 +79,22 @@ export const PointsLogRepo = {
     const result = await getDb().query('SELECT * FROM player_points_log WHERE porra_id=$1', [porraId]);
     return result.rows as PlayerPointsLogRow[];
   },
+
+  /**
+   * Puntos acumulados por selección a lo largo del torneo: suma de points_total
+   * de todas las porras que la eligieron (incluye provisionales en vivo, igual
+   * que el ranking). Proyección de SOLO LECTURA sobre el log existente.
+   */
+  async sumPointsByTeam(): Promise<Map<string, number>> {
+    const result = await getDb().query(
+      'SELECT team_id, SUM(points_total)::float AS points FROM team_points_log GROUP BY team_id');
+    return new Map(result.rows.map((r: { team_id: string; points: number }) => [r.team_id, r.points ?? 0]));
+  },
+
+  /** Puntos acumulados por jugador a lo largo del torneo (ver sumPointsByTeam). */
+  async sumPointsByPlayer(): Promise<Map<string, number>> {
+    const result = await getDb().query(
+      'SELECT player_id, SUM(points_total)::float AS points FROM player_points_log GROUP BY player_id');
+    return new Map(result.rows.map((r: { player_id: string; points: number }) => [r.player_id, r.points ?? 0]));
+  },
 };

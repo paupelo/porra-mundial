@@ -83,7 +83,7 @@ function dayKeyInTz(d: Date, tz: string): string {
  * (p. ej. el primer día del torneo): en ese caso no se muestra indicador.
  */
 export async function computePreviousDayPositions(): Promise<Map<string, number>> {
-  const tz = process.env.RANKING_DAY_TZ || 'Europe/Madrid';
+  const tz = process.env.RANKING_DAY_TZ || 'America/Panama';
   const today = dayKeyInTz(new Date(), tz);
 
   const [allMatches, allEvents, porras, teamPhaseResults, teams, players] = await Promise.all([

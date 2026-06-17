@@ -342,8 +342,8 @@ informativo, aditivo y de SOLO LECTURA (no hay tabla nueva ni se persiste nada).
   posición actual. No depende de timing (sirve aunque el proceso free duerma) ni de datos guardados:
   funciona retroactivamente con lo que haya en la BD.
 - **Zona horaria:** los partidos se agrupan por día en `RANKING_DAY_TZ` (env, por defecto
-  `Europe/Madrid`, coherente con cómo el Calendario agrupa por día local). `match_date` se almacena
-  en UTC; el bucketing usa `Intl.DateTimeFormat('en-CA', { timeZone })` → `YYYY-MM-DD` comparable.
+  `America/Panama`, UTC-5 sin horario de verano). `match_date` se almacena en UTC; el bucketing usa
+  `Intl.DateTimeFormat('en-CA', { timeZone })` → `YYYY-MM-DD` comparable.
 - **`services/ranking.ts`** (con `computeRankingEntries` + `computePreviousDayPositions`):
   `computeRankingEntries` arma el ranking actual desde la caché `porra_scores` (incluye provisionales
   en vivo); `computePreviousDayPositions` filtra `MatchesRepo`/`EventsRepo` a los partidos de días

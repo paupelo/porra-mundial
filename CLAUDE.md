@@ -215,6 +215,12 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
   `Type 41` con descripción "convierte el penal" = penalti MARCADO (no fallado). Por eso para `41`/`60`
   el desenlace se resuelve por la DESCRIPCIÓN (`penaltyOutcomeFromText`: gol vs fallo vs parada) y solo
   se cae al supuesto (41=fallado, 60=parado) si el texto no lo aclara. Todo entra como borrador.
+- **Penalti cometido (deducido, jun-2026):** FIFA NO emite un evento propio de "penalti cometido";
+  la falta es un `Type 18` normal (ruido ignorado para puntuar). `aggregateTimeline` recoge las faltas
+  y, por cada penalti en juego, asigna `penalty_conceded` al jugador del equipo DEFENSOR (el que NO
+  lanza) que cometió la última falta en los ≤5 min previos al lanzamiento. Una sola penalización por
+  falta aunque el penalti se repita. Verificado con datos reales (Modrić comete y Kane lanza,
+  Inglaterra-Croacia 17-jun). Aplica en vivo y final.
 - **Conciliación de nombres:** equipos por `country_code` FIFA (ARG, MEX…); jugadores por
   similitud de trigramas (`besoccer/reconciler.ts`) contra la plantilla del equipo, umbral 0.45.
   Los no conciliados se loguean y el admin los carga a mano.

@@ -211,7 +211,7 @@ async function reconcileAndSaveTallies(
     const hasData = tally.minutes_played > 0 || tally.goals_open_play || tally.goals_penalty_play ||
       tally.goals_penalty_shootout || tally.assists || tally.penalty_saved_play ||
       tally.penalty_saved_shootout || tally.red_card || tally.penalty_missed_play ||
-      tally.penalty_missed_shootout || tally.own_goals;
+      tally.penalty_missed_shootout || tally.own_goals || tally.penalty_conceded;
     if (!hasData) continue;
 
     const name = nameByFifaId.get(tally.fifaPlayerId) ?? '';

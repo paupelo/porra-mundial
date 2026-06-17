@@ -280,6 +280,45 @@ describe('FIFA mapper — aggregateTimeline', () => {
     expect(t4.penalty_missed_play).toBe(1);
   });
 
+  it('deduce el penalti cometido de la falta previa del equipo defensor', () => {
+    // Caso real: Modrić (Croacia) comete falta en el 9' y Kane (Inglaterra)
+    // convierte el penalti en el 12'. La penalización es para Modrić, no para
+    // las demás faltas (otro equipo o fuera de la ventana de tiempo).
+    const events = [
+      { Type: 18, Period: 3, MatchMinute: "9'",  IdPlayer: 'p2', IdTeam: 't1', EventDescription: [{ Description: 'MODRIĆ comete una falta.' }] },
+      { Type: 41, Period: 3, MatchMinute: "12'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: '¡KANE convierte el penal!' }] },
+      { Type: 18, Period: 3, MatchMinute: "20'", IdPlayer: 'p1', IdTeam: 't2', EventDescription: [{ Description: 'Rice comete una falta.' }] },
+      { Type: 18, Period: 3, MatchMinute: "80'", IdPlayer: 'p3', IdTeam: 't1', EventDescription: [{ Description: 'Lo Celso comete una falta.' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p2')!.penalty_conceded).toBe(1); // Modrić
+    expect(tallies.get('p4')!.penalty_conceded).toBe(0); // lanzador
+    expect(tallies.get('p1')!.penalty_conceded).toBe(0); // del equipo atacante
+    expect(tallies.get('p3')!.penalty_conceded).toBe(0); // falta lejana en el tiempo
+    // El penalti marcado se cuenta como gol; la falta no añade puntos extra.
+    expect(tallies.get('p4')!.goals_penalty_play).toBe(1);
+  });
+
+  it('una falta normal sin penalti cercano no penaliza', () => {
+    const events = [
+      { Type: 18, Period: 3, MatchMinute: "30'", IdPlayer: 'p2', IdTeam: 't1', EventDescription: [{ Description: 'Falta de Alvarez' }] },
+      { Type: 0,  Period: 3, MatchMinute: "55'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: 'Gol de Messi' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p2')!.penalty_conceded).toBe(0);
+  });
+
+  it('un penalti repetido solo penaliza una vez al causante', () => {
+    // El portero para el penalti (defensor t1) y el lanzador t2 lo repite y marca.
+    const events = [
+      { Type: 18, Period: 3, MatchMinute: "40'", IdPlayer: 'p2', IdTeam: 't1', EventDescription: [{ Description: 'Alvarez comete una falta.' }] },
+      { Type: 60, Period: 3, MatchMinute: "42'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: 'El portero para el penalti' }] },
+      { Type: 0,  Period: 3, MatchMinute: "43'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: 'Gol de penalti' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p2')!.penalty_conceded).toBe(1);
+  });
+
   it('reporta tipos de evento desconocidos sin romperse', () => {
     const events = [{ Type: 777, IdPlayer: 'p1', EventDescription: [{ Description: 'VAR en revisión' }] }];
     const { unmappedTypes } = aggregateTimeline(events, lineup, 90);

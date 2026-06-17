@@ -295,8 +295,10 @@ export interface TimelineAggregation {
  * Agrega el timeline de FIFA en un registro por jugador (el formato de
  * match_player_events). Recibe la alineación para calcular minutos jugados.
  *
+ * "Penalti cometido" no tiene evento propio: se DEDUCE de la falta (Type 18) del
+ * equipo defensor previa al lanzamiento (ver más abajo). El admin puede corregirlo.
+ *
  * Limitaciones conocidas (se completan a mano en el panel de admin):
- * - "Penalti cometido" no aparece como evento propio en el timeline.
  * - Las asistencias solo se detectan si el evento de gol trae IdAssistPlayer/IdSubPlayer.
  */
 export function aggregateTimeline(
@@ -323,6 +325,14 @@ export function aggregateTimeline(
     if (!playerGoals.has(pid)) playerGoals.set(pid, []);
     playerGoals.get(pid)!.push({ shootout: isShootout, minute: min });
   };
+  // Penalti cometido: FIFA NO emite un evento propio; el penalti se deduce de la
+  // falta (Type 18) del equipo defensor justo antes del lanzamiento. Recogemos
+  // las faltas y los penaltis para enlazarlos al final del bucle.
+  interface Foul { playerId: string; teamId: string | null; minute: number; }
+  interface PenaltyKick { teamId: string | null; minute: number; kind: 'goal' | 'missed' | 'saved'; }
+  const fouls: Foul[] = [];
+  const penaltyKicks: PenaltyKick[] = [];
+  const teamIds = new Set<string>();
 
   const getTally = (fifaPlayerId: string, fifaTeamId: string | null): PlayerTally => {
     if (!tallies.has(fifaPlayerId)) tallies.set(fifaPlayerId, emptyTally(fifaPlayerId, fifaTeamId));
@@ -338,6 +348,13 @@ export function aggregateTimeline(
     const description = localized(ev?.EventDescription) || localized(ev?.TypeLocalized) || '';
     const kind = classifyEvent(ev?.Type, description);
     const shootout = isShootoutEvent(ev);
+    if (teamId) teamIds.add(teamId);
+
+    // Faltas (Type 18): se ignoran para puntuar, pero se guardan para deducir el
+    // penalti cometido. También por texto, por si el código cambiara.
+    if (playerId && (ev?.Type === 18 || normalize(description).includes('comete una falta') || normalize(description).includes('commits a foul'))) {
+      fouls.push({ playerId, teamId, minute: parseMinute(ev?.MatchMinute) ?? 0 });
+    }
 
     if (kind === null) {
       if (ev?.Type !== undefined && ev?.Type !== null) unmappedTypes.push({ type: ev.Type, description });
@@ -366,6 +383,7 @@ export function aggregateTimeline(
         if (shootout) tally.goals_penalty_shootout++;
         else { tally.goals_penalty_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
         recordGoal(playerId, shootout, minute);
+        if (!shootout) penaltyKicks.push({ teamId, minute, kind: 'goal' });
         break;
       case 'own_goal':
         tally.own_goals++;
@@ -374,10 +392,12 @@ export function aggregateTimeline(
       case 'penalty_missed':
         if (!pendingPenaltyFails.has(playerId)) pendingPenaltyFails.set(playerId, []);
         pendingPenaltyFails.get(playerId)!.push({ shootout, minute, kind: 'missed' });
+        if (!shootout) penaltyKicks.push({ teamId, minute, kind: 'missed' });
         break;
       case 'penalty_saved':
         if (!pendingPenaltyFails.has(playerId)) pendingPenaltyFails.set(playerId, []);
         pendingPenaltyFails.get(playerId)!.push({ shootout, minute, kind: 'saved' });
+        if (!shootout) penaltyKicks.push({ teamId, minute, kind: 'saved' });
         break;
       case 'red_card':
         tally.red_card = 1;
@@ -406,6 +426,34 @@ export function aggregateTimeline(
         if (f.shootout) tally.penalty_saved_shootout++; else tally.penalty_saved_play++;
       }
     }
+  }
+
+  // ── Penalti cometido (deducido de la falta previa al lanzamiento) ────────────
+  // Para cada penalti en juego, el causante es el jugador del equipo DEFENSOR
+  // (el que no lanza) que cometió la última falta en los minutos previos. Se
+  // asigna una sola penalización por falta, aunque el penalti se repita.
+  const PENALTY_FOUL_WINDOW_MIN = 5;
+  const otherTeam = (t: string | null): string | null => {
+    if (!t || teamIds.size !== 2) return null;
+    return [...teamIds].find(id => id !== t) ?? null;
+  };
+  const assignedFoulKeys = new Set<string>();
+  for (const pk of penaltyKicks) {
+    // Equipo que comete el penalti = el que NO lanza. En 'goal'/'missed' el
+    // evento es del lanzador (atacante); en 'saved' es del portero (defensor).
+    const concedingTeam = pk.kind === 'saved' ? pk.teamId : otherTeam(pk.teamId);
+    if (!concedingTeam) continue;
+    let best: Foul | null = null;
+    for (const f of fouls) {
+      if (f.teamId !== concedingTeam) continue;
+      if (f.minute > pk.minute || pk.minute - f.minute > PENALTY_FOUL_WINDOW_MIN) continue;
+      if (!best || f.minute > best.minute) best = f; // la más cercana al penalti
+    }
+    if (!best) continue;
+    const key = `${best.playerId}@${best.minute}`;
+    if (assignedFoulKeys.has(key)) continue; // misma falta (penalti repetido) → una sola vez
+    assignedFoulKeys.add(key);
+    getTally(best.playerId, best.teamId).penalty_conceded++;
   }
 
   // ── Minutos jugados e intervalo en campo ─────────────────────────────────────

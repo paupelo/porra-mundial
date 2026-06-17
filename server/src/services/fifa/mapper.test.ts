@@ -229,6 +229,37 @@ describe('FIFA mapper — aggregateTimeline', () => {
     expect(tallies.get('p1')!.assists).toBe(0);
   });
 
+  it('un penalti fallado que se manda repetir y acaba en gol cuenta solo como gol', () => {
+    // Kane (p1) falla un penalti en el 55' pero el árbitro lo manda repetir y lo
+    // marca en el mismo minuto: no debe contar como fallo.
+    const events = [
+      { Type: 41, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Penalti fallado' }] },
+      { Type: 0,  IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Gol de penalti' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    const kane = tallies.get('p1')!;
+    expect(kane.goals_penalty_play).toBe(1);
+    expect(kane.penalty_missed_play).toBe(0);
+
+    // Lo mismo si el penalti fue PARADO y luego se repite y marca.
+    const events2 = [
+      { Type: 60, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Penalti parado' }] },
+      { Type: 0,  IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Gol de penalti' }] },
+    ];
+    const t2 = aggregateTimeline(events2, lineup, 90).tallies.get('p1')!;
+    expect(t2.goals_penalty_play).toBe(1);
+    expect(t2.penalty_saved_play).toBe(0);
+
+    // Un penalti fallado SIN repetición (sin gol en ese minuto) sí cuenta.
+    const events3 = [
+      { Type: 41, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "55'", Period: 5, EventDescription: [{ Description: 'Penalti fallado' }] },
+      { Type: 0,  IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "80'", Period: 5, EventDescription: [{ Description: 'Gol de penalti' }] },
+    ];
+    const t3 = aggregateTimeline(events3, lineup, 90).tallies.get('p1')!;
+    expect(t3.goals_penalty_play).toBe(1);
+    expect(t3.penalty_missed_play).toBe(1);
+  });
+
   it('reporta tipos de evento desconocidos sin romperse', () => {
     const events = [{ Type: 777, IdPlayer: 'p1', EventDescription: [{ Description: 'VAR en revisión' }] }];
     const { unmappedTypes } = aggregateTimeline(events, lineup, 90);

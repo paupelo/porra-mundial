@@ -280,6 +280,12 @@ export function aggregateTimeline(
   const goalEvents: GoalEvent[] = [];
   // Minuto de expulsión: un jugador con roja abandona el campo (salida).
   const redMinuteByPlayer = new Map<string, number>();
+  // Penaltis fallados/parados y penaltis marcados por jugador, para anular un
+  // penalti fallado que el árbitro mandó repetir y acabó en gol (mismo jugador,
+  // mismo minuto): contaría como fallo + gol cuando en realidad solo hay un gol.
+  interface PenaltyAttempt { shootout: boolean; minute: number; kind: 'missed' | 'saved'; }
+  const pendingPenaltyFails = new Map<string, PenaltyAttempt[]>();
+  const penaltyGoals = new Map<string, Array<{ shootout: boolean; minute: number }>>();
 
   const getTally = (fifaPlayerId: string, fifaTeamId: string | null): PlayerTally => {
     if (!tallies.has(fifaPlayerId)) tallies.set(fifaPlayerId, emptyTally(fifaPlayerId, fifaTeamId));
@@ -321,18 +327,20 @@ export function aggregateTimeline(
       case 'penalty_goal':
         if (shootout) tally.goals_penalty_shootout++;
         else { tally.goals_penalty_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
+        if (!penaltyGoals.has(playerId)) penaltyGoals.set(playerId, []);
+        penaltyGoals.get(playerId)!.push({ shootout, minute });
         break;
       case 'own_goal':
         tally.own_goals++;
         goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: true });
         break;
       case 'penalty_missed':
-        if (shootout) tally.penalty_missed_shootout++;
-        else tally.penalty_missed_play++;
+        if (!pendingPenaltyFails.has(playerId)) pendingPenaltyFails.set(playerId, []);
+        pendingPenaltyFails.get(playerId)!.push({ shootout, minute, kind: 'missed' });
         break;
       case 'penalty_saved':
-        if (shootout) tally.penalty_saved_shootout++;
-        else tally.penalty_saved_play++;
+        if (!pendingPenaltyFails.has(playerId)) pendingPenaltyFails.set(playerId, []);
+        pendingPenaltyFails.get(playerId)!.push({ shootout, minute, kind: 'saved' });
         break;
       case 'red_card':
         tally.red_card = 1;
@@ -342,6 +350,24 @@ export function aggregateTimeline(
         // Las asistencias llegan como evento propio (Type 1) con IdPlayer = asistente
         if (!shootout) tally.assists++;
         break;
+    }
+  }
+
+  // ── Penaltis fallados que se mandaron repetir y acabaron en gol ──────────────
+  // Un penalti fallado/parado seguido de un gol de penalti del mismo jugador en
+  // el mismo minuto (±1) es una repetición convertida: cuenta solo como gol, no
+  // como fallo. El resto de fallos/paradas se contabilizan normalmente.
+  for (const [playerId, fails] of pendingPenaltyFails) {
+    const goals = penaltyGoals.get(playerId) ?? [];
+    const tally = getTally(playerId, null);
+    for (const f of fails) {
+      const retaken = goals.some(g => g.shootout === f.shootout && Math.abs(g.minute - f.minute) <= 1);
+      if (retaken) continue; // repetido y marcado → no es fallo
+      if (f.kind === 'missed') {
+        if (f.shootout) tally.penalty_missed_shootout++; else tally.penalty_missed_play++;
+      } else {
+        if (f.shootout) tally.penalty_saved_shootout++; else tally.penalty_saved_play++;
+      }
     }
   }
 

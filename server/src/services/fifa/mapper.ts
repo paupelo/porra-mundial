@@ -266,6 +266,11 @@ export function classifyEvent(type: unknown, description: string): string | null
     case 3: return 'red_card';
     case 4: return 'red_card'; // segunda amarilla
     case 5: return 'substitution';
+    // Type 6 = lanzamiento de penalti (descripción VACÍA). Verificado con datos
+    // reales del Mundial 2026: un penalti convertido llega como Type 6 + Type 41
+    // ("convierte el penal"); uno fallado llega SOLO como Type 6 (sin desenlace).
+    // El desenlace se decide después: fallado si el lanzador no marca ese minuto.
+    case 6: return 'penalty_attempt';
     case 34: return 'own_goal';
     // Códigos 41/60 sin verificar: datos reales del Mundial 2026 muestran que
     // Type 41 también marca un penalti CONVERTIDO ("KANE convierte el penal").
@@ -347,7 +352,12 @@ export function aggregateTimeline(
   interface Foul { playerId: string; teamId: string | null; minute: number; }
   interface PenaltyKick { teamId: string | null; minute: number; kind: 'goal' | 'missed' | 'saved'; }
   const fouls: Foul[] = [];
-  const penaltyKicks: PenaltyKick[] = [];
+  // Lanzamientos detectados por TEXTO (Type 41/60/0) — fallback sin Type 6.
+  const classifiedKicks: PenaltyKick[] = [];
+  // Lanzamientos de penalti reales (Type 6): el marcador fiable de "se lanzó un
+  // penalti". El desenlace se decide después según si el lanzador marcó.
+  interface PenaltyTaken { playerId: string; teamId: string | null; minute: number; shootout: boolean; }
+  const penaltyAttempts: PenaltyTaken[] = [];
   const teamIds = new Set<string>();
 
   const getTally = (fifaPlayerId: string, fifaTeamId: string | null): PlayerTally => {
@@ -378,8 +388,20 @@ export function aggregateTimeline(
     }
     if (kind === 'ignore') continue;
     if (kind === 'substitution') {
-      // En v3 el que entra es IdPlayer y el que sale IdSubPlayer
-      const minute = parseMinute(ev?.MatchMinute) ?? 0;
+      // En v3 el que entra es IdPlayer y el que sale IdSubPlayer.
+      // Los cambios AL DESCANSO ("antes de que empiece la segunda parte") vienen
+      // SIN MatchMinute → hay que asumir el minuto 45: un titular cambiado al
+      // descanso jugó 45' (antes se quedaba con el partido entero → portería a
+      // cero indebida) y el que entra juega la 2ª parte.
+      let minute = parseMinute(ev?.MatchMinute);
+      if (minute == null) {
+        const dd = normalize(description);
+        minute = (dd.includes('segunda parte') || dd.includes('second half') ||
+                  dd.includes('descanso') || dd.includes('half-time') ||
+                  dd.includes('half time') || dd.includes('halftime'))
+          ? 45
+          : (ev?.Period === 5 ? 46 : 0);
+      }
       if (playerId && ev?.IdSubPlayer) {
         substitutions.push({ playerInId: playerId, playerOutId: String(ev.IdSubPlayer), minute });
       }
@@ -399,7 +421,10 @@ export function aggregateTimeline(
         if (shootout) tally.goals_penalty_shootout++;
         else { tally.goals_penalty_play++; goalEvents.push({ fifaTeamId: teamId, minute, isOwnGoal: false }); }
         recordGoal(playerId, shootout, minute);
-        if (!shootout) penaltyKicks.push({ teamId, minute, kind: 'goal' });
+        if (!shootout) classifiedKicks.push({ teamId, minute, kind: 'goal' });
+        break;
+      case 'penalty_attempt': // Type 6: lanzamiento (desenlace resuelto tras el bucle)
+        penaltyAttempts.push({ playerId, teamId, minute, shootout });
         break;
       case 'own_goal':
         tally.own_goals++;
@@ -408,12 +433,12 @@ export function aggregateTimeline(
       case 'penalty_missed':
         if (!pendingPenaltyFails.has(playerId)) pendingPenaltyFails.set(playerId, []);
         pendingPenaltyFails.get(playerId)!.push({ shootout, minute, kind: 'missed' });
-        if (!shootout) penaltyKicks.push({ teamId, minute, kind: 'missed' });
+        if (!shootout) classifiedKicks.push({ teamId, minute, kind: 'missed' });
         break;
       case 'penalty_saved':
         if (!pendingPenaltyFails.has(playerId)) pendingPenaltyFails.set(playerId, []);
         pendingPenaltyFails.get(playerId)!.push({ shootout, minute, kind: 'saved' });
-        if (!shootout) penaltyKicks.push({ teamId, minute, kind: 'saved' });
+        if (!shootout) classifiedKicks.push({ teamId, minute, kind: 'saved' });
         break;
       case 'red_card':
         tally.red_card = 1;
@@ -426,22 +451,50 @@ export function aggregateTimeline(
     }
   }
 
-  // ── Penaltis fallados que se mandaron repetir y acabaron en gol ──────────────
-  // Un penalti fallado/parado seguido de un gol de penalti del mismo jugador en
-  // el mismo minuto (±1) es una repetición convertida: cuenta solo como gol, no
-  // como fallo. El resto de fallos/paradas se contabilizan normalmente.
-  for (const [playerId, fails] of pendingPenaltyFails) {
+  // ── Desenlace de los penaltis ────────────────────────────────────────────────
+  // Un lanzamiento (Type 6 o, en su defecto, los detectados por texto) es FALLADO
+  // si el lanzador no marca en ese minuto (±1); si marca, es una conversión (o una
+  // repetición convertida) y no cuenta como fallo.
+  const scoredAt = (playerId: string, shootout: boolean, minute: number): boolean => {
     const goals = playerGoals.get(playerId) ?? [];
-    const tally = getTally(playerId, null);
-    for (const f of fails) {
-      const retaken = goals.some(g => g.shootout === f.shootout && Math.abs(g.minute - f.minute) <= 1);
-      if (retaken) continue; // repetido y marcado → no es fallo
-      if (f.kind === 'missed') {
-        if (f.shootout) tally.penalty_missed_shootout++; else tally.penalty_missed_play++;
-      } else {
+    return goals.some(g => g.shootout === shootout && Math.abs(g.minute - minute) <= 1);
+  };
+  const hasType6 = penaltyAttempts.length > 0;
+  let penaltyKicks: PenaltyKick[];
+
+  if (hasType6) {
+    // Camino AUTORITATIVO (datos reales del Mundial): cada Type 6 es un lanzamiento.
+    for (const att of penaltyAttempts) {
+      if (scoredAt(att.playerId, att.shootout, att.minute)) continue; // convertido
+      const tally = getTally(att.playerId, att.teamId);
+      if (att.shootout) tally.penalty_missed_shootout++; else tally.penalty_missed_play++;
+    }
+    // Las paradas del portero (Type 60/texto) siguen premiando al portero.
+    for (const [pid, fails] of pendingPenaltyFails) {
+      const tally = getTally(pid, null);
+      for (const f of fails) {
+        if (f.kind !== 'saved') continue;
         if (f.shootout) tally.penalty_saved_shootout++; else tally.penalty_saved_play++;
       }
     }
+    // Un lanzamiento por cada Type 6 (en juego) para deducir el penalti cometido.
+    penaltyKicks = penaltyAttempts
+      .filter(a => !a.shootout)
+      .map(a => ({ teamId: a.teamId, minute: a.minute, kind: scoredAt(a.playerId, false, a.minute) ? 'goal' : 'missed' } as PenaltyKick));
+  } else {
+    // Fallback por TEXTO (datos sin el marcador Type 6): lógica previa.
+    for (const [pid, fails] of pendingPenaltyFails) {
+      const tally = getTally(pid, null);
+      for (const f of fails) {
+        if (scoredAt(pid, f.shootout, f.minute)) continue; // repetido y marcado → no es fallo
+        if (f.kind === 'missed') {
+          if (f.shootout) tally.penalty_missed_shootout++; else tally.penalty_missed_play++;
+        } else {
+          if (f.shootout) tally.penalty_saved_shootout++; else tally.penalty_saved_play++;
+        }
+      }
+    }
+    penaltyKicks = classifiedKicks;
   }
 
   // ── Penalti cometido (deducido de la falta previa al lanzamiento) ────────────

@@ -42,8 +42,10 @@ const KNOCKOUT_PHASES = ['dieciseisavos', 'octavos', 'cuartos', 'semifinales', '
  * eventos para forzar el recálculo retroactivo automático.
  *   v1 (jun-2026): fix "por jugar" a suplentes de prórroga + captura de penalti
  *                  fallado (antes mal clasificado como gol).
+ *   v2 (jun-2026): penalti fallado real = Type 6 sin gol del lanzador (Messi);
+ *                  cambios al descanso (MatchMinute vacío) = minuto 45 (Gvardiol).
  */
-const RECONCILE_VERSION = 1;
+const RECONCILE_VERSION = 2;
 
 function envInt(name: string, fallback: number): number {
   const v = parseInt(process.env[name] ?? '', 10);

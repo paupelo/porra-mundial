@@ -33,9 +33,10 @@ La capa de datos está aislada en `repositories/` (única que toca Postgres).
 ### Hosting
 Servicio web en Render (plan free, Frankfurt) con auto-deploy desde `master` de GitHub.
 Un solo proceso sirve el frontend compilado (`build/`) y la API: `https://porra-mundial-1rco.onrender.com`.
-⚠️ El plan free duerme el proceso tras ~15 min sin tráfico → el scheduler de FIFA solo corre despierto;
-para puntuación realmente automática hace falta un ping externo periódico (p. ej. cron-job.org o UptimeRobot
-golpeando la home cada 10 min) o subir de plan.
+⚠️ El plan free duerme el proceso tras ~15 min sin tráfico → el scheduler de FIFA solo corre despierto.
+Para mantenerlo despierto hay un **GitHub Action `keep-alive`** (`.github/workflows/keep-alive.yml`) que
+golpea la home cada ~10 min (cron de GitHub, gratis, independiente de Render; puede retrasarse algo y se
+desactiva si el repo queda 60 días inactivo). Alternativas: cron-job.org / UptimeRobot, o subir de plan.
 
 ---
 
@@ -452,6 +453,27 @@ fallado por texto/negación y agregación del fallo de Messi). Suite: 166 tests,
 tras el deploy (RECONCILE_VERSION subida a 1), reescribiendo sus eventos de origen FIFA con la lógica
 corregida — incluidos los suplentes de prórroga que se habían descartado y el penalti de Messi (que
 estaba auto-confirmado como gol). No hace falta tocar el panel de admin.
+
+### Datos reales de FIFA: penalti fallado (Type 6) y cambio al descanso (junio 2026)
+
+Verificado contra el timeline REAL del Mundial 2026 (Argentina 2-0 Austria; Panamá 0-1 Croacia):
+
+- **Penalti fallado = `Type 6` sin gol del lanzador.** FIFA NO emite un evento de "penalti fallado".
+  Un penalti CONVERTIDO llega como `Type 6` (descripción vacía) **+** `Type 41` ("convierte el penal");
+  uno FALLADO llega **solo** como `Type 6`, sin desenlace. Antes el `Type 6` se ignoraba → el fallo de
+  Messi (penalti del 9' vs Austria) no se computaba (−20 perdidos). Ahora `aggregateTimeline` recoge los
+  `Type 6` como lanzamientos y, tras el bucle, marca **penalti fallado** todo lanzamiento cuyo lanzador
+  no marque en ese minuto (±1); si marca, es conversión (o repetición convertida) y no cuenta como fallo.
+  El causante de la falta previa (Posch) recibe el penalti cometido por la deducción habitual. La
+  detección por TEXTO (Type 41/60 "fallado"/"parado", `penaltyOutcomeFromText`) se mantiene como fallback
+  cuando no hay `Type 6` (datos sintéticos/tests); las dos vías no se solapan (`hasType6`).
+- **Cambio al descanso = minuto 45.** Los `Type 5` (cambio) hechos en el descanso ("antes de que empiece
+  la segunda parte") vienen **sin `MatchMinute`**. Antes `parseMinute("") ?? 0` daba minuto 0, y un
+  titular cambiado al descanso conservaba el partido entero → **portería a cero indebida** (caso Gvardiol,
+  cambiado al 45' y aun así premiado). Ahora un cambio sin minuto se interpreta como el **minuto 45** (45'
+  jugados para el que sale, 2ª parte para el que entra), así Gvardiol ya no llega a los 60' de portería a cero.
+
+Ambos arreglan datos ya jugados de forma automática vía la revisión post-partido (RECONCILE_VERSION=2).
 
 ### Revisión automática post-partido / autocorrección (junio 2026)
 

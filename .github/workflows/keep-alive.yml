@@ -1,0 +1,36 @@
+name: keep-alive
+
+# Mantiene despierto el servicio de Render (plan free: duerme tras ~15 min sin
+# tráfico). Mientras esté despierto corre el scheduler de FIFA (puntuación en
+# vivo, scrape al finalizar y la revisión/autocorrección post-partido).
+# Nota: GitHub puede retrasar los cron y desactiva los workflows programados si
+# el repo no tiene actividad durante 60 días (irrelevante durante el torneo).
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # cada 10 minutos
+  workflow_dispatch: {}      # permite lanzarlo a mano
+
+# Si se solapan ejecuciones, basta con la última.
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping a la home para evitar que Render duerma el proceso
+        run: |
+          URL="https://porra-mundial-1rco.onrender.com/"
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 40 "$URL" || echo "000")
+            echo "intento $i → HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "servicio despierto"
+              exit 0
+            fi
+            sleep 25
+          done
+          # Despertar un proceso dormido puede tardar; no fallamos el job por eso.
+          echo "::warning::el ping no devolvió 200 tras varios intentos"

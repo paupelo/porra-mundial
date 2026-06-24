@@ -147,6 +147,9 @@ describe('FIFA mapper — classifyEvent', () => {
     expect(classifyEvent(0, 'Gol de penalti de Messi')).toBe('penalty_goal');
     expect(classifyEvent(41, 'Messi convierte el penal')).toBe('penalty_goal');
   });
+  it('Type 6 = lanzamiento de penalti (desenlace resuelto aparte)', () => {
+    expect(classifyEvent(6, '')).toBe('penalty_attempt');
+  });
   it('ignora en silencio el ruido del timeline (faltas, remates, córners…)', () => {
     expect(classifyEvent(2, 'Tarjeta amarilla')).toBe('ignore');
     expect(classifyEvent(12, 'Remate de Brian Gutiérrez')).toBe('ignore');
@@ -290,6 +293,52 @@ describe('FIFA mapper — aggregateTimeline', () => {
     const t4 = aggregateTimeline(events4, lineup, 90).tallies.get('p1')!;
     expect(t4.goals_penalty_play).toBe(1);
     expect(t4.penalty_missed_play).toBe(1);
+  });
+
+  it('BUG 2 (datos reales): penalti fallado = Type 6 sin gol del lanzador (Messi)', () => {
+    // Estructura real ARG-AUT: "Penal concedido" (71) + Type 6 (vacío) del lanzador,
+    // sin evento de desenlace. Messi marca DOS goles en otros minutos (38 y 90+5),
+    // y el penalti del 9' fue fallado → penalty_missed_play, NO un tercer gol.
+    const events = [
+      { Type: 18, Period: 3, MatchMinute: "4'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: 'Posch (Austria) comete una falta.' }] },
+      { Type: 71, Period: 3, MatchMinute: "6'", EventDescription: [{ Description: 'Penal concedido' }] },
+      { Type: 6,  Period: 3, MatchMinute: "9'",  IdPlayer: 'p1', IdTeam: 't1', EventDescription: [] },
+      { Type: 0,  Period: 3, MatchMinute: "38'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: '¡Goool de Lionel MESSI!' }] },
+      { Type: 0,  Period: 5, MatchMinute: "90'+5'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: '¡Goool de Lionel MESSI!' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    const messi = tallies.get('p1')!;
+    expect(messi.penalty_missed_play).toBe(1); // el penalti del 9' fallado → -20
+    expect(messi.goals_open_play).toBe(2);     // los dos goles reales
+    expect(messi.goals_penalty_play).toBe(0);
+    // El causante de la falta previa del equipo defensor recibe el penalti cometido.
+    expect(tallies.get('p4')!.penalty_conceded).toBe(1);
+  });
+
+  it('Type 6 + gol del lanzador en el mismo minuto = penalti convertido (Kane), no fallo', () => {
+    // Estructura real ENG-CRO: Type 6 (vacío) + Type 41 "convierte el penal" en el 12'.
+    const events = [
+      { Type: 6,  Period: 3, MatchMinute: "12'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [] },
+      { Type: 41, Period: 3, MatchMinute: "12'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: '¡Harry KANE convierte el penal!' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    const kane = tallies.get('p1')!;
+    expect(kane.goals_penalty_play).toBe(1);
+    expect(kane.penalty_missed_play).toBe(0);
+  });
+
+  it('BUG 3 (datos reales): cambio al descanso (sin minuto) cuenta como minuto 45', () => {
+    // Estructura real PAN-CRO: Type 5 con MatchMinute vacío y "antes de que empiece
+    // la segunda parte" → Gvardiol (titular) sale en el 45, no juega los 90.
+    const events = [
+      { Type: 5, Period: 5, MatchMinute: '', IdPlayer: 'p3', IdSubPlayer: 'p2', IdTeam: 't1',
+        EventDescription: [{ Description: 'Cambio: antes de que empiece la segunda parte, KRAMARIC entra en lugar de GVARDIOL (Croacia)' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    // p2 (Gvardiol, titular) sale en el 45 → 45 min, NO portería a cero (necesita 60).
+    expect(tallies.get('p2')!).toMatchObject({ minute_in: 0, minute_out: 45, minutes_played: 45 });
+    // p3 (Kramaric) entra en el 45 → juega la 2ª parte.
+    expect(tallies.get('p3')!).toMatchObject({ minute_in: 45, minutes_played: 45 });
   });
 
   it('BUG 2: agrega un penalti fallado en juego (Messi vs Austria) como fallo', () => {

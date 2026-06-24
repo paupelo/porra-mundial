@@ -135,6 +135,18 @@ describe('FIFA mapper — classifyEvent', () => {
     expect(classifyEvent(41, 'Penalti')).toBe('penalty_missed');
     expect(classifyEvent(60, 'Penalti')).toBe('penalty_saved');
   });
+  it('BUG 2: un penalti fallado en juego NO se confunde con un gol', () => {
+    // Type 0 (gol) cuyo texto es un fallo de penalti → penalti fallado, no gol.
+    expect(classifyEvent(0, 'Messi falla el penalti')).toBe('penalty_missed');
+    expect(classifyEvent(0, 'Lionel Messi (Argentina) no marca el penal')).toBe('penalty_missed');
+    expect(classifyEvent(0, 'Penalti, sin gol, lo manda fuera')).toBe('penalty_missed');
+    // Type 41/60 con verbo de gol NEGADO → fallo (antes se leía como gol).
+    expect(classifyEvent(41, 'Messi no convierte el penal')).toBe('penalty_missed');
+    expect(classifyEvent(999, 'El delantero no anota el penalti')).toBe('penalty_missed');
+    // Pero un penalti REALMENTE convertido sigue siendo gol.
+    expect(classifyEvent(0, 'Gol de penalti de Messi')).toBe('penalty_goal');
+    expect(classifyEvent(41, 'Messi convierte el penal')).toBe('penalty_goal');
+  });
   it('ignora en silencio el ruido del timeline (faltas, remates, córners…)', () => {
     expect(classifyEvent(2, 'Tarjeta amarilla')).toBe('ignore');
     expect(classifyEvent(12, 'Remate de Brian Gutiérrez')).toBe('ignore');
@@ -278,6 +290,19 @@ describe('FIFA mapper — aggregateTimeline', () => {
     const t4 = aggregateTimeline(events4, lineup, 90).tallies.get('p1')!;
     expect(t4.goals_penalty_play).toBe(1);
     expect(t4.penalty_missed_play).toBe(1);
+  });
+
+  it('BUG 2: agrega un penalti fallado en juego (Messi vs Austria) como fallo', () => {
+    // FIFA loguea el lanzamiento de Messi como Type 0 con texto de fallo: debe
+    // contar como penalty_missed_play (−20 en el motor), nunca como gol.
+    const events = [
+      { Type: 0, IdPlayer: 'p1', IdTeam: 't1', MatchMinute: "35'", Period: 3, EventDescription: [{ Description: 'Messi no marca el penalti' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    const messi = tallies.get('p1')!;
+    expect(messi.penalty_missed_play).toBe(1);
+    expect(messi.goals_penalty_play).toBe(0);
+    expect(messi.goals_open_play).toBe(0);
   });
 
   it('deduce el penalti cometido de la falta previa del equipo defensor', () => {

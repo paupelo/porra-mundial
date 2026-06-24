@@ -208,8 +208,11 @@ async function reconcileAndSaveTallies(
   const existingByPlayerId = new Map(existingEvents.map(e => [e.player_id, e]));
 
   for (const tally of tallies.values()) {
-    const hasData = tally.minutes_played > 0 || tally.goals_open_play || tally.goals_penalty_play ||
-      tally.goals_penalty_shootout || tally.assists || tally.penalty_saved_play ||
+    // Un suplente que entró (minute_in > 0) cuenta como participante aunque sus
+    // minutos se hayan redondeado a 0 (entró en el descuento/prórroga): debe
+    // guardarse para que reciba los 5 puntos de "por jugar".
+    const hasData = tally.minutes_played > 0 || tally.minute_in > 0 || tally.goals_open_play ||
+      tally.goals_penalty_play || tally.goals_penalty_shootout || tally.assists || tally.penalty_saved_play ||
       tally.penalty_saved_shootout || tally.red_card || tally.penalty_missed_play ||
       tally.penalty_missed_shootout || tally.own_goals || tally.penalty_conceded;
     if (!hasData) continue;
@@ -327,7 +330,10 @@ export async function syncMatchEvents(match: MatchRecord): Promise<MatchEventsSy
   const liveData = liveRes.status === 'fulfilled' ? liveRes.value : null;
   const lineup = liveData ? extractLineup(liveData) : [];
 
-  const durationMin = match.decided_by_penalties ? 120 : 90;
+  // La prórroga es posible en cualquier eliminatoria (desde dieciseisavos), se
+  // decida o no en penaltis. Usar 90 fijaba a 0 los minutos de los suplentes que
+  // entraban en el alargue → perdían los 5 puntos de "por jugar". Grupos: 90.
+  const durationMin = match.phase === 'grupos' ? 90 : 120;
   const { tallies, goalEvents, unmappedTypes } = aggregateTimeline(events, lineup, durationMin);
   summary.unmappedEventTypes = unmappedTypes;
   if (unmappedTypes.length > 0) {

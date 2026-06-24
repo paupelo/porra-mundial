@@ -405,6 +405,55 @@ La pestaña Clasificación (`/clasificacion`) tiene un selector interno de tres 
       `res-chips` en `ResumenElegidos.css`; el desglose hace scroll horizontal en móvil (regla
       scopeada, no toca el `.breakdown-wrap` del detalle de participante).
 
+### Bugs corregidos: "por jugar" y "penalti fallado" (junio 2026)
+
+Dos fallos en la puntuación de jugadores, corregidos a la vez (engine + scraper, sin tocar
+ninguna otra lógica).
+
+**BUG 1 — "Por jugar" (5 pts) no se sumaba a suplentes de prórroga/descuento** (p. ej. Lamine
+Yamal, Oyarzabal). Causa en dos capas:
+- *Engine* (`scoring/jugadores.ts`): la condición era `if (event.minutes_played > 0)`, un umbral de
+  minutos que la regla prohíbe.
+- *Scraper* (`fifa/sync.ts`): `syncMatchEvents` usaba `durationMin = decided_by_penalties ? 120 : 90`.
+  Una eliminatoria resuelta en la **prórroga sin penaltis** recibía 90 → el `minute_in` de un suplente
+  que entraba en el alargue (o en el descuento, 90+x) se clampaba al límite y `minutes_played` quedaba
+  en 0; ese jugador (a) ni se guardaba (`hasData` lo descartaba) y (b) aunque se guardara, el engine no
+  le daba los 5.
+- **Lógica definitiva de "por jugar":** 5 puntos a **todo jugador que pise el campo**, sin ningún
+  umbral de minutos (titular, suplente en cualquier minuto, o suplente que entra en la prórroga —
+  posible desde dieciseisavos). El engine lo decide con el helper puro `participoEnElPartido(event)`
+  (minutos jugados, intervalo en campo `minute_in>0`/`minute_out!=null`, o cualquier acción de juego).
+  Un evento sin participación alguna (0 min, sin entrar, sin acciones) sigue sin puntuar.
+- *Correcciones del scraper:* `durationMin = phase === 'grupos' ? 90 : 120` (prórroga en toda
+  eliminatoria) y `hasData` también guarda al suplente que entró (`minute_in > 0`) aunque sus minutos
+  se hayan redondeado a 0.
+
+**BUG 2 — Penalti fallado en juego no descontaba −20** (p. ej. Messi vs Austria). El engine ya
+procesaba `penalty_missed_play` (−20) / `penalty_missed_shootout` (−10) correctamente; el fallo
+estaba en la **clasificación del scraper** (`fifa/mapper.ts`):
+- `classifyEvent` **case 0** devolvía `'penalty_goal'` para CUALQUIER penalti de Type 0, aunque el
+  texto dijera "fallado". Ahora un penalti de Type 0 resuelve el desenlace por la descripción
+  (`penaltyOutcomeFromText`) y solo cae a gol si el texto no lo contradice.
+- `penaltyOutcomeFromText` priorizaba las palabras de gol (`marca`, `anota`, `gol`…) **sin detectar
+  negación**: "no marca el penal" / "sin gol" se leían como GOL. Ahora detecta parada → fallo
+  (incl. verbo de gol negado: regex de `no` aislado + `sin gol`) → gol, en ese orden. (También se
+  sustituyó la palabra de fallo `'err'` por `'erro'`, que matcheaba "Inglat**err**a".)
+- **Lógica definitiva de "penalti fallado":** en juego **−20** (`PENALTIES.penaltiAlladoPlay`), en
+  tanda **−10** (`penaltiAlladoShootout`). Nunca se multiplican por fase (son sanciones). Un penalti
+  fallado que el árbitro manda repetir y acaba en gol cuenta solo como gol (lógica de repetición
+  intacta).
+
+**Tests:** +7 nuevos (`engine.test.ts`: suplente de prórroga con `minutes_played=0`, jugador con
+acción y 0 min, salida del campo, total con penalti fallado en final; `mapper.test.ts`: penalti
+fallado por texto/negación y agregación del fallo de Messi). Suite: 166 tests, 0 fallos.
+
+**Recálculo de partidos ya jugados:** tras desplegar, `POST /api/admin/recalcular` reaplica el
+engine corregido (BUG 1 se arregla para los suplentes ya guardados con `minutes_played>0`). Para los
+suplentes que se habían **descartado** (clamp a 0) y para los penaltis fallados ya **confirmados** mal
+clasificados (Messi), hace falta **re-scrapear** el partido ("Re-scrapear eventos de FIFA"): re-importa
+a los participantes nuevos; si el evento del penalti ya estaba confirmado como gol, el admin debe
+corregirlo a mano (o borrarlo y re-scrapear), porque el scraper nunca pisa stats ya confirmadas.
+
 ### Portería a cero y gol encajado por intervalo en campo (junio 2026)
 
 Antes, "portería a cero" y "gol encajado" se calculaban con `minutes_played` y el

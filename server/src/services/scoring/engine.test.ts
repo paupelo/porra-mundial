@@ -384,9 +384,33 @@ describe('Por jugar', () => {
     expect(singlePlayerScore(p, { minutes_played: 90 }, 'final').totalPoints).toBe(15);
   });
 
-  test('Jugador con 0 minutos → no suma por jugar', () => {
+  test('Jugador sin participación alguna (0 min, sin entrar) → no suma por jugar', () => {
     const p = makePlayer('mid', 'esp', 'medio');
     expect(singlePlayerScore(p, { minutes_played: 0 }).totalPoints).toBe(0);
+  });
+
+  // BUG 1: un suplente que entra en la prórroga puede quedar con minutes_played=0
+  // (su minuto se redondea al límite del partido) pero JUGÓ → debe recibir los 5.
+  test('Suplente que entra en prórroga (minutes_played=0, minute_in>0) → +5', () => {
+    const p = makePlayer('mid', 'esp', 'medio');
+    const r = singlePlayerScore(p, { minutes_played: 0, minute_in: 120, minute_out: null }, 'octavos');
+    expect(r.items.find(i => i.concept === 'porJugar')).toBeDefined();
+    expect(r.totalPoints).toBe(5);
+  });
+
+  // BUG 1: aunque los minutos lleguen a 0, una acción de juego (gol, asistencia,
+  // tarjeta…) prueba que el jugador pisó el campo → cobra "por jugar".
+  test('Jugador con gol pero minutes_played=0 → recibe por jugar además del gol', () => {
+    const p = makePlayer('mid', 'esp', 'medio');
+    const r = singlePlayerScore(p, { minutes_played: 0, goals_open_play: 1 });
+    expect(r.items.find(i => i.concept === 'porJugar')).toBeDefined();
+    expect(r.totalPoints).toBe(30); // porJugar 5 + gol medio 25
+  });
+
+  test('Suplente que sale del campo (minute_out definido) cuenta como participante', () => {
+    const p = makePlayer('mid', 'esp', 'medio');
+    const r = singlePlayerScore(p, { minutes_played: 0, minute_in: 0, minute_out: 0 });
+    expect(r.items.find(i => i.concept === 'porJugar')).toBeDefined();
   });
 });
 
@@ -560,6 +584,16 @@ describe('Penalti fallado', () => {
     const r = singlePlayerScore(p, { penalty_missed_shootout: 1 });
     const pf = r.items.find(i => i.concept === 'penaltiFalladoTanda');
     expect(pf!.basePoints).toBe(-10);
+  });
+
+  // BUG 2: el -20 del penalti fallado en juego se descuenta SIEMPRE del total
+  // (no se multiplica por fase, ni siquiera en la final).
+  test('Penalti fallado en juego descuenta -20 del total (90 min + fallo)', () => {
+    const p = makePlayer('fwd', 'esp', 'delantero');
+    const r = singlePlayerScore(p, { minutes_played: 90, penalty_missed_play: 1 }, 'final');
+    const pf = r.items.find(i => i.concept === 'penaltiFalladoJuego');
+    expect(pf!.finalPoints).toBe(-20); // ×1 aunque sea final
+    expect(r.totalPoints).toBe(-5);    // porJugar 5×3=15 (final) − 20 = -5
   });
 });
 

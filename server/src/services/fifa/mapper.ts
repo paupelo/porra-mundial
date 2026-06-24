@@ -223,18 +223,28 @@ const IGNORED_EVENT_TYPES = new Set([2, 7, 8, 12, 15, 16, 18, 26, 57, 71, 78, 79
  * Devuelve null si el texto no aclara el resultado.
  */
 function penaltyOutcomeFromText(d: string): 'penalty_goal' | 'penalty_missed' | 'penalty_saved' | null {
-  if (d.includes('convier') || d.includes('convirti') || d.includes('convertid') ||
-      d.includes('marca') || d.includes('marcad') || d.includes('anot') ||
-      d.includes('transform') || d.includes('gol') || d.includes('goal') || d.includes('scored')) {
-    return 'penalty_goal';
-  }
+  // d viene normalizado (minúsculas, sin acentos).
+  // Un verbo de gol NEGADO ("no marca", "no convierte", "sin gol") es un FALLO,
+  // no un gol; antes se leía como gol y el penalti fallado se perdía.
+  const hasGoalWord =
+    d.includes('convier') || d.includes('convirti') || d.includes('convertid') ||
+    d.includes('marca') || d.includes('marcad') || d.includes('anot') ||
+    d.includes('transform') || d.includes('gol') || d.includes('goal') || d.includes('scored');
+  const negated = /(^|[^a-z])no([^a-z]|$)/.test(d) || d.includes('sin gol');
+
+  // 1) Parada del portero (señal inequívoca, prioritaria).
   if (d.includes('parad') || d.includes('atajad') || d.includes('detien') || d.includes('detuv') || d.includes('saved')) {
     return 'penalty_saved';
   }
-  if (d.includes('fallad') || d.includes('falla') || d.includes('missed') || d.includes('err') ||
-      d.includes('fuera') || d.includes('desvia') || d.includes('poste') || d.includes('larguero')) {
+  // 2) Fallo: palabras de fallo, o un verbo de gol negado.
+  // 'erro' (erró/error), no 'err' a secas: matchearía "Inglaterra", "guerra"…
+  if (d.includes('fallad') || d.includes('falla') || d.includes('fallo') || d.includes('missed') ||
+      d.includes('erro') || d.includes('fuera') || d.includes('desvia') || d.includes('poste') ||
+      d.includes('larguero') || (hasGoalWord && negated)) {
     return 'penalty_missed';
   }
+  // 3) Gol convertido (verbo de gol sin negación).
+  if (hasGoalWord) return 'penalty_goal';
   return null;
 }
 
@@ -245,7 +255,13 @@ export function classifyEvent(type: unknown, description: string): string | null
   if (typeof type === 'number' && IGNORED_EVENT_TYPES.has(type)) return 'ignore';
 
   switch (type) {
-    case 0: return isPenalty ? 'penalty_goal' : 'goal';
+    case 0: {
+      // Type 0 = gol. Si es un penalti, el desenlace lo decide la descripción
+      // (un penalti fallado puede llegar como Type 0 con texto "fallado/no marca");
+      // por defecto, gol convertido.
+      if (isPenalty) return penaltyOutcomeFromText(d) ?? 'penalty_goal';
+      return 'goal';
+    }
     case 1: return 'assist'; // evento propio: "Asistencia de X"
     case 3: return 'red_card';
     case 4: return 'red_card'; // segunda amarilla

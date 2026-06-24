@@ -81,6 +81,34 @@ export function goalsConcededWhileOnPitch(
   return concededMinutes.filter(m => m >= inMin && m <= outMin).length;
 }
 
+// ─── Participación en el partido ("por jugar") ───────────────────────────────
+
+/**
+ * Devuelve true si el jugador PISÓ EL CAMPO en algún momento del partido.
+ *
+ * Regla de la porra: todo jugador que participe puntúa "por jugar" (5 pts),
+ * sin ningún umbral de minutos — titulares, suplentes que entran en cualquier
+ * minuto y suplentes que entran en la prórroga (eliminatorias). Por eso NO se
+ * usa `minutes_played > 0`: un suplente que entra en el descuento o en la
+ * prórroga puede quedar con `minutes_played` redondeado a 0, y aun así jugó.
+ *
+ * La participación se detecta por cualquier señal de haber estado sobre el
+ * césped: minutos jugados, intervalo en campo (entró como suplente o salió) o
+ * cualquier acción que solo puede ocurrir jugando.
+ */
+export function participoEnElPartido(e: MatchPlayerEventRecord): boolean {
+  return (
+    e.minutes_played > 0 ||
+    (e.minute_in != null && e.minute_in > 0) || // suplente que entró (aunque el minuto caiga al límite)
+    e.minute_out != null ||                      // salió del campo ⇒ estuvo en él
+    e.goals_open_play > 0 || e.goals_penalty_play > 0 || e.goals_penalty_shootout > 0 ||
+    e.assists > 0 || e.penalty_saved_play > 0 || e.penalty_saved_shootout > 0 ||
+    e.red_card === 1 || e.penalty_conceded > 0 ||
+    e.penalty_missed_play > 0 || e.penalty_missed_shootout > 0 ||
+    e.own_goals > 0
+  );
+}
+
 // ─── Puntuación de jugadores por partido ─────────────────────────────────────
 
 function calcMatchPoints(
@@ -102,8 +130,9 @@ function calcMatchPoints(
     items.push(pItem('porteroImprovicado', match.phase, PENALTIES.porteroImprovicado, 1, captainMult, suplenteMult, mid));
   }
 
-  // Por jugar
-  if (event.minutes_played > 0) {
+  // Por jugar: cualquier jugador que pise el campo (sin umbral de minutos;
+  // incluye suplentes que entran en el descuento o en la prórroga).
+  if (participoEnElPartido(event)) {
     const scoring = PLAYER_SCORING[player.position];
     items.push(pItem('porJugar', match.phase, scoring.porJugar, mult, captainMult, suplenteMult, mid));
 

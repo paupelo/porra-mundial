@@ -135,6 +135,21 @@ function JugadorCard({ jug, matchesById }) {
   );
 }
 
+// Subtotal de un bloque (selecciones / jugadores), mismo estilo que el total general
+function SubtotalBloque({ label, total }) {
+  return (
+    <div
+      style={{
+        display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 10,
+        marginTop: 14, paddingTop: 12, borderTop: '2px solid #e2e8f0',
+        fontSize: '1rem', color: '#64748b', fontWeight: 600,
+      }}
+    >
+      {label}: <span style={{ color: '#003DA5', fontWeight: 900, fontSize: '1.2rem' }}>{total.toFixed(1)} pts</span>
+    </div>
+  );
+}
+
 // Convierte la alineación de la API al formato que espera CampoFormacion
 function buildCampoProps(lineup) {
   const POS_MAP = { portero: 'POR', defensa: 'DEF', medio: 'MED', delantero: 'DEL' };
@@ -195,6 +210,10 @@ export default function DetalleParticipante({ porraId, onBack }) {
   const ganador    = porraData?.selections?.find(s => s.is_winner);
 
   const hasScore = score && (selecciones.length > 0 || jugadores.length > 0);
+
+  // Subtotales por bloque: suma de los puntos ya calculados que llegan del backend
+  const totalSelecciones = selecciones.reduce((acc, s) => acc + (s.totalPoints ?? 0), 0);
+  const totalJugadores   = jugadores.reduce((acc, j) => acc + (j.totalPoints ?? 0), 0);
 
   return (
     <div>
@@ -291,12 +310,14 @@ export default function DetalleParticipante({ porraId, onBack }) {
               <div className="sel-grid">
                 {selecciones.map(s => <SelCard key={s.teamId} sel={s} matchesById={matchesById} />)}
               </div>
+              <SubtotalBloque label="Total selecciones" total={totalSelecciones} />
             </div>
           )}
           {jugadores.length > 0 && (
             <div className="detalle-section">
               <h3>Jugadores ({jugadores.length})</h3>
               {jugadores.map(j => <JugadorCard key={j.playerId} jug={j} matchesById={matchesById} />)}
+              <SubtotalBloque label="Total jugadores" total={totalJugadores} />
             </div>
           )}
         </div>

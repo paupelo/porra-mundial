@@ -272,6 +272,12 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
 - **Detalle de participante:** cada selección/jugador muestra tabla por partido
   (Rival | Resultado | Fase | Brutos | Mult. | Pts) con desglose concepto a concepto expandible,
   y modal "📜 Histórico completo" (`HistorialPorPartido.js`, componente nuevo).
+  - **Subtotales por bloque (jun-2026):** al final del bloque "Selecciones" y del bloque "Jugadores"
+    (pestaña "📊 Puntuación") se muestra una línea destacada "Total selecciones: X pts" / "Total
+    jugadores: X pts" (`SubtotalBloque` en `DetalleParticipante.js`). Se calcula en el frontend
+    sumando los `totalPoints` que ya llegan en `breakdown.selecciones`/`breakdown.jugadores` (sin
+    endpoints ni recálculo nuevos); la suma de ambos subtotales coincide con el "Total" general de la
+    cabecera. Mismo estilo que el total general (azul #003DA5 sobre etiqueta gris).
 - **Admin → "Resultados y eventos"** (`AdminResultados.js`, sección nueva): estado del scheduler,
   partidos con badge ⚠️ PENDIENTE, eventos editables inline, "Confirmar partido (recalcula puntos)"
   y re-scrape por partido.

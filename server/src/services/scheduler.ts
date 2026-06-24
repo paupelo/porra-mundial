@@ -8,8 +8,10 @@
  * Política de puntuación:
  * - El MARCADOR de un partido finalizado puntúa en cuanto se scrapea y se
  *   recalcula (las victorias/derrotas/empates salen de `matches`, no de eventos).
- * - Los EVENTOS de jugadores entran como borrador y solo puntúan cuando el
- *   admin confirma el partido (o con FIFA_AUTO_CONFIRM=true, no recomendado).
+ * - Los EVENTOS de un partido finalizado se auto-confirman y puntúan sin admin.
+ *   Además se RE-DERIVAN solos cuando cambia la lógica del scraper/scoring
+ *   (ver RECONCILE_VERSION): el sistema revisa y corrige todo lo ya jugado sin
+ *   intervención manual; solo las ediciones `source='manual'` son intocables.
  * - En eliminatorias se derivan advanced/eliminated/winner automáticamente,
  *   sin pisar resultados de fase que el admin haya fijado a mano. La fase de
  *   grupos (depende de clasificaciones y mejores terceros) queda en manos del admin.
@@ -27,6 +29,21 @@ import { MatchRecord } from '../types';
 const TICK_MS = 60_000;
 const FAST_CALENDAR_MIN = 10;              // refresco con partidos "calientes"
 const KNOCKOUT_PHASES = ['dieciseisavos', 'octavos', 'cuartos', 'semifinales', 'final'];
+
+/**
+ * Versión de la lógica de reconciliación (scraper + scoring de eventos).
+ * El scheduler re-deriva una vez —sin admin— los eventos de cada partido
+ * finalizado cuyo `reconcile_version` sea inferior, y luego lo sella con esta
+ * versión. Es la "revisión automática de todo al terminar cada partido": un
+ * cambio en cómo se interpretan los datos de FIFA (p. ej. un penalti fallado o
+ * los 5 puntos por jugar) se reaplica solo a todo lo ya jugado.
+ *
+ * ⚠️ SUBIR ESTE NÚMERO cada vez que cambie la lógica del scraper/scoring de
+ * eventos para forzar el recálculo retroactivo automático.
+ *   v1 (jun-2026): fix "por jugar" a suplentes de prórroga + captura de penalti
+ *                  fallado (antes mal clasificado como gol).
+ */
+const RECONCILE_VERSION = 1;
 
 function envInt(name: string, fallback: number): number {
   const v = parseInt(process.env[name] ?? '', 10);
@@ -170,11 +187,21 @@ async function tick(): Promise<void> {
       // Backfill de minutos de gol/intervalo en partidos cerrados antes de la feature.
       const needsIntervalBackfill = m.home_goal_minutes == null && m.away_goal_minutes == null
         && !intervalBackfillAttempted.has(m.id);
-      if (counts.total === 0 || counts.live > 0 || needsIntervalBackfill) {
+      // Revisión automática: re-derivar los eventos si se derivaron con una
+      // versión de lógica anterior (autocorrige todo lo ya jugado, sin admin).
+      const needsVerify = (m.reconcile_version ?? 0) < RECONCILE_VERSION;
+      if (counts.total === 0 || counts.live > 0 || needsIntervalBackfill || needsVerify) {
         if (needsIntervalBackfill) intervalBackfillAttempted.add(m.id);
-        log(`scrapeando eventos de ${m.id} (FIFA ${m.fifa_match_id})…`);
+        log(needsVerify
+          ? `revisando eventos de ${m.id} (re-derivación v${m.reconcile_version ?? 0}→${RECONCILE_VERSION})…`
+          : `scrapeando eventos de ${m.id} (FIFA ${m.fifa_match_id})…`);
         const summary = await syncMatchEvents(m);
-        log(`eventos de ${m.id}: ${summary.saved} guardados, ${summary.unreconciled.length} sin conciliar`);
+        log(`eventos de ${m.id}: ${summary.saved} guardados/actualizados, ${summary.skippedManual} manuales intactos, ${summary.unreconciled.length} sin conciliar`);
+        // Sellar con la versión actual SOLO si FIFA respondió (si no, se reintenta
+        // en el próximo tick en vez de marcar el partido como revisado en falso).
+        if (summary.timelineFetched && needsVerify) {
+          await MatchesRepo.update(m.id, { reconcile_version: RECONCILE_VERSION });
+        }
         didWork = true;
       }
       // Sin aprobación manual: los eventos de un partido finalizado puntúan

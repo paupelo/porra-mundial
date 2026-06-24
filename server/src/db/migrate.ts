@@ -41,6 +41,10 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE match_player_events ADD COLUMN IF NOT EXISTS minute_out INTEGER',
     'ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_goal_minutes INTEGER[]',
     'ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_goal_minutes INTEGER[]',
+    // Autocorrección post-partido (junio 2026): versión de la lógica con la que se
+    // derivaron los eventos. El scheduler re-scrapea los partidos cuya versión sea
+    // inferior a RECONCILE_VERSION para reaplicar cambios de scraper/scoring sin admin.
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS reconcile_version INTEGER NOT NULL DEFAULT 0',
     // Ampliar el CHECK de source para admitir borradores del scraper de FIFA.
     // El par DROP+ADD es idempotente ejecutado en este orden.
     'ALTER TABLE match_player_events DROP CONSTRAINT IF EXISTS match_player_events_source_check',

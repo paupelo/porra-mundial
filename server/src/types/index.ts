@@ -67,6 +67,13 @@ export interface MatchRecord {
    */
   home_goal_minutes?: number[] | null;
   away_goal_minutes?: number[] | null;
+  /**
+   * Versión de la lógica de reconciliación con la que se derivaron por última vez
+   * los eventos de este partido. El scheduler re-scrapea (autocorrige) un partido
+   * finalizado cuando su versión es menor que RECONCILE_VERSION, así un cambio en
+   * el scraper/scoring se reaplica solo a todo lo ya jugado, sin admin. Default 0.
+   */
+  reconcile_version?: number | null;
 }
 
 export interface MatchPlayerEventRecord {

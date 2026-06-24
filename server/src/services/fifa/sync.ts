@@ -174,7 +174,8 @@ export async function syncCalendar(): Promise<CalendarSyncSummary> {
 
 interface SaveTalliesResult {
   saved: number;
-  skippedConfirmed: number;
+  /** Eventos NO tocados por ser ediciones manuales del admin (intocables). */
+  skippedManual: number;
   unreconciled: Array<{ fifaPlayerId: string; name: string }>;
 }
 
@@ -186,7 +187,7 @@ async function reconcileAndSaveTallies(
   liveData: unknown,
   isLive: boolean,
 ): Promise<SaveTalliesResult> {
-  const result: SaveTalliesResult = { saved: 0, skippedConfirmed: 0, unreconciled: [] };
+  const result: SaveTalliesResult = { saved: 0, skippedManual: 0, unreconciled: [] };
 
   // FIFA IdTeam → nuestro team_id, vía las alineaciones del endpoint live
   const fifaTeamToOurs = new Map<string, string>();
@@ -204,7 +205,11 @@ async function reconcileAndSaveTallies(
   const awayPlayers = allPlayers.filter(p => p.team_id === match.away_team_id);
 
   const existingEvents = await EventsRepo.findByMatch(match.id);
-  const confirmedPlayerIds = new Set(existingEvents.filter(e => e.is_confirmed === 1).map(e => e.player_id));
+  // SOLO las ediciones MANUALES del admin son intocables. Los eventos de origen
+  // FIFA (source='fifa_draft'), aunque ya estén auto-confirmados, se RE-DERIVAN en
+  // cada scrape: así una corrección del scraper/scoring se autocorrige sola, sin
+  // que el admin tenga que intervenir (p. ej. un penalti mal clasificado).
+  const manualPlayerIds = new Set(existingEvents.filter(e => e.source === 'manual').map(e => e.player_id));
   const existingByPlayerId = new Map(existingEvents.map(e => [e.player_id, e]));
 
   for (const tally of tallies.values()) {
@@ -232,17 +237,16 @@ async function reconcileAndSaveTallies(
       result.unreconciled.push({ fifaPlayerId: tally.fifaPlayerId, name });
       continue;
     }
-    if (confirmedPlayerIds.has(best.item.id)) {
-      // El admin ya validó las stats de este jugador: no las pisamos, pero SÍ
-      // rellenamos el intervalo en campo si aún no estaba (dato nuevo que no
-      // existía cuando se confirmó el partido) y aporta algo (no titular pleno).
-      const existing = existingByPlayerId.get(best.item.id);
+    const existing = existingByPlayerId.get(best.item.id);
+    if (manualPlayerIds.has(best.item.id)) {
+      // Edición MANUAL del admin: no pisamos sus stats. Solo rellenamos el
+      // intervalo en campo si faltaba (dato nuevo que no existía al editar).
       const hasInterval = tally.minute_in !== 0 || tally.minute_out !== null;
       if (existing && existing.minute_in == null && existing.minute_out == null && hasInterval) {
         await EventsRepo.backfillMinutes(match.id, best.item.id, tally.minute_in, tally.minute_out);
         result.saved++;
       } else {
-        result.skippedConfirmed++;
+        result.skippedManual++;
       }
       continue;
     }
@@ -265,7 +269,9 @@ async function reconcileAndSaveTallies(
       own_goals: tally.own_goals,
       is_improvised_goalkeeper: 0,
       source: 'fifa_draft',
-      is_confirmed: 0,
+      // Al re-derivar un evento ya confirmado, se mantiene confirmado para que sus
+      // puntos no parpadeen a 0 entre el re-scrape y el recálculo. En vivo siempre 0.
+      is_confirmed: isLive ? 0 : (existing?.is_confirmed ?? 0),
       is_live: isLive ? 1 : 0,
       minute_in: tally.minute_in,
       minute_out: tally.minute_out,
@@ -274,9 +280,9 @@ async function reconcileAndSaveTallies(
   }
 
   // Minutos de gol del partido (para portería a cero / gol encajado por intervalo).
-  // Se derivan del timeline y se refrescan en cada scrape (en vivo o final); el
-  // scheduler no re-scrapea partidos ya cerrados, así que no pisa ediciones del
-  // admin salvo que este pulse "Re-scrapear" explícitamente.
+  // Se derivan del timeline y se refrescan en cada scrape (en vivo, final o
+  // verificación post-partido). Si el endpoint live no respondió no hay mapeo de
+  // equipos y no se tocan (degradación segura: nunca se borran datos buenos).
   if (fifaTeamToOurs.size > 0) {
     const homeMinutes: number[] = [];
     const awayMinutes: number[] = [];
@@ -306,14 +312,16 @@ async function reconcileAndSaveTallies(
 export interface MatchEventsSyncSummary {
   matchId: string;
   saved: number;
-  skippedConfirmed: number;
+  skippedManual: number;
   unreconciled: Array<{ fifaPlayerId: string; name: string }>;
   unmappedEventTypes: Array<{ type: unknown; description: string }>;
+  /** El timeline de FIFA se descargó de verdad (no rechazado por red/outage). */
+  timelineFetched: boolean;
 }
 
 export async function syncMatchEvents(match: MatchRecord): Promise<MatchEventsSyncSummary> {
   const summary: MatchEventsSyncSummary = {
-    matchId: match.id, saved: 0, skippedConfirmed: 0, unreconciled: [], unmappedEventTypes: [],
+    matchId: match.id, saved: 0, skippedManual: 0, unreconciled: [], unmappedEventTypes: [], timelineFetched: false,
   };
   const seasonId = await resolveSeasonId();
   if (!seasonId || !match.fifa_match_id || !match.fifa_stage_id) return summary;
@@ -326,6 +334,7 @@ export async function syncMatchEvents(match: MatchRecord): Promise<MatchEventsSy
     console.warn(`[fifa] timeline no disponible para ${match.fifa_match_id}: ${timelineRes.reason}`);
     return summary;
   }
+  summary.timelineFetched = true;
   const events = timelineRes.value.Event ?? [];
   const liveData = liveRes.status === 'fulfilled' ? liveRes.value : null;
   const lineup = liveData ? extractLineup(liveData) : [];
@@ -343,7 +352,7 @@ export async function syncMatchEvents(match: MatchRecord): Promise<MatchEventsSy
 
   const saveResult = await reconcileAndSaveTallies(match, tallies, goalEvents, lineup, liveData, false);
   summary.saved = saveResult.saved;
-  summary.skippedConfirmed = saveResult.skippedConfirmed;
+  summary.skippedManual = saveResult.skippedManual;
   summary.unreconciled = saveResult.unreconciled;
 
   // El scrape final cierra el modo en vivo: los borradores dejan de puntuar

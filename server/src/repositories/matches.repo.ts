@@ -5,7 +5,7 @@ import { MatchRecord, TeamPhaseResultRecord } from '../types';
 const COLS = `id,phase,home_team_id,away_team_id,match_date,status,
   home_score,away_score,decided_by_penalties,penalty_winner_id,
   fifa_match_id,fifa_stage_id,group_name,venue,last_scraped_at,
-  minute,live_home_score,live_away_score,home_goal_minutes,away_goal_minutes`;
+  minute,live_home_score,live_away_score,home_goal_minutes,away_goal_minutes,reconcile_version`;
 
 export const MatchesRepo = {
   async findAll(): Promise<MatchRecord[]> {

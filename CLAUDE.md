@@ -447,12 +447,38 @@ estaba en la **clasificación del scraper** (`fifa/mapper.ts`):
 acción y 0 min, salida del campo, total con penalti fallado en final; `mapper.test.ts`: penalti
 fallado por texto/negación y agregación del fallo de Messi). Suite: 166 tests, 0 fallos.
 
-**Recálculo de partidos ya jugados:** tras desplegar, `POST /api/admin/recalcular` reaplica el
-engine corregido (BUG 1 se arregla para los suplentes ya guardados con `minutes_played>0`). Para los
-suplentes que se habían **descartado** (clamp a 0) y para los penaltis fallados ya **confirmados** mal
-clasificados (Messi), hace falta **re-scrapear** el partido ("Re-scrapear eventos de FIFA"): re-importa
-a los participantes nuevos; si el evento del penalti ya estaba confirmado como gol, el admin debe
-corregirlo a mano (o borrarlo y re-scrapear), porque el scraper nunca pisa stats ya confirmadas.
+**Recálculo de partidos ya jugados — AUTOMÁTICO (sin admin):** ver la sección siguiente
+("Revisión automática post-partido"). El scheduler re-deriva solos todos los partidos finalizados
+tras el deploy (RECONCILE_VERSION subida a 1), reescribiendo sus eventos de origen FIFA con la lógica
+corregida — incluidos los suplentes de prórroga que se habían descartado y el penalti de Messi (que
+estaba auto-confirmado como gol). No hace falta tocar el panel de admin.
+
+### Revisión automática post-partido / autocorrección (junio 2026)
+
+**Problema:** al finalizar un partido sus eventos se **auto-confirman**, y el scraper tenía la regla
+"nunca pisar un evento confirmado". Esa regla protegía las ediciones del admin, pero también
+**congelaba para siempre cualquier dato mal interpretado** (p. ej. un penalti fallado clasificado como
+gol): aunque se arreglara el código, el dato ya confirmado no se autocorregía nunca.
+
+**Solución — el sistema revisa y re-deriva todo solo, sin intervención del admin:**
+- **La protección ahora distingue origen, no confirmación.** `reconcileAndSaveTallies` solo respeta los
+  eventos `source='manual'` (ediciones explícitas del admin, intocables). Los `source='fifa_draft'`
+  —aunque estén auto-confirmados— se **re-derivan en cada scrape** con la lógica vigente. Al re-derivar
+  un evento ya confirmado se mantiene confirmado (los puntos no parpadean). Si FIFA devuelve un timeline
+  vacío o no responde, no se toca nada (degradación segura: nunca se borran datos buenos).
+- **Versión de reconciliación.** `matches.reconcile_version` (nueva columna, default 0) guarda con qué
+  versión de la lógica se derivaron los eventos. El scheduler, en cada tick, re-deriva una vez cada
+  partido finalizado cuyo `reconcile_version` sea menor que `RECONCILE_VERSION` (constante en
+  `scheduler.ts`) y luego lo sella con esa versión (solo si FIFA respondió). Es persistente → sobrevive
+  a reinicios del plan free; está acotado (una pasada por partido y versión, no en bucle).
+  **⚠️ Subir `RECONCILE_VERSION` cada vez que cambie la lógica de scraper/scoring de eventos** fuerza el
+  recálculo retroactivo automático de todo lo ya jugado. v1 = fix "por jugar" + penalti fallado.
+- **Flujo completo al terminar un partido (ya existía + ahora autocorrige):** scrape final → re-derivación
+  de eventos FIFA → auto-confirmar → `deriveKnockoutPhaseResults` → `recalcularYGuardar`. El botón
+  "Re-scrapear eventos de FIFA" del admin ahora también re-deriva de verdad (antes saltaba los confirmados).
+- **Resultado:** si Messi falla un penalti y se computó mal, el sistema lo corrige solo en cuanto el
+  scraper sabe interpretarlo (subiendo la versión); el admin no tiene que hacer nada. Sus ediciones
+  manuales siguen siendo sagradas.
 
 ### Portería a cero y gol encajado por intervalo en campo (junio 2026)
 

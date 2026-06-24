@@ -318,10 +318,18 @@ api.fifa.com/v3 ──► fifa/client.ts ──► fifa/mapper.ts ──► fifa
   jugador con el desglose por conceptos y la etiqueta "Provisional (en vivo)" / "Definitivo".
   Los puntos salen del `breakdown_json` de `porra_scores` filtrado por `matchId` (sin recálculo).
 - **"⚽ Partidos de hoy" (jun-2026):** bloque destacado al principio de la pestaña que muestra solo
-  los partidos cuyo día (hora local del usuario) es hoy, ordenados En vivo → Próximos por hora →
-  Finalizados. Reutiliza el MISMO componente de tarjeta (`MatchCard`) que el listado general
-  (extraído sin cambios visuales); estado vacío discreto "No hay partidos hoy". El calendario
-  completo sigue intacto debajo. Clases `cal-today-*` en `Calendario.css`.
+  los partidos cuyo día es hoy, ordenados En vivo → Próximos por hora → Finalizados. Reutiliza el
+  MISMO componente de tarjeta (`MatchCard`) que el listado general (extraído sin cambios visuales);
+  estado vacío discreto "No hay partidos hoy". El calendario completo sigue intacto debajo. Clases
+  `cal-today-*` en `Calendario.css`.
+  - **Zona de referencia del torneo (jun-2026):** "hoy" se decide por el día natural en la zona del
+    torneo `America/Chicago` (`TOURNAMENT_TZ` en `Calendario.js`), no por el día del visitante. Las
+    sedes del Mundial están en EE.UU./Canadá/México y Chicago (CDT/CST) es la más central; así un
+    partido nocturno de América no "se escapa" al día siguiente para quien lo mira desde Europa. El
+    filtro compara `ymdInTz(match_date, 'America/Chicago')` con `ymdInTz(now, 'America/Chicago')`.
+    Las horas se siguen mostrando en la zona local del navegador; cuando el partido cae en un día
+    distinto en esa zona local respecto al día del torneo, se añade un sufijo discreto " (+1)" /
+    " (-1)" junto a la hora (`dayOffsetSuffix`), solo en este bloque (el calendario general no cambia).
 
 ### Progreso de la jornada en curso en Clasificación (jun-2026)
 

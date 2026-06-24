@@ -17,13 +17,36 @@ function fmtPts(n) {
   return `${n > 0 ? '+' : ''}${Number(n).toFixed(1)}`;
 }
 
+// Zona horaria de referencia del torneo: las sedes del Mundial 2026 están en
+// EE.UU., Canadá y México; America/Chicago (CDT/CST) es la más central y se usa
+// para definir qué partidos son "de hoy" con independencia de dónde mire el visitante.
+const TOURNAMENT_TZ = 'America/Chicago';
+
+// YYYY-MM-DD de una fecha en una zona horaria concreta (en-CA → ISO comparable).
+function ymdInTz(date, timeZone) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+}
+
+// Sufijo discreto " (+1)" / " (-1)" cuando, en la zona local del visitante, el
+// partido cae en un día distinto al del torneo (America/Chicago). Cadena vacía si coincide.
+function dayOffsetSuffix(matchDate) {
+  if (!matchDate) return '';
+  const d = new Date(matchDate);
+  const localTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })();
+  const tournamentYmd = ymdInTz(d, TOURNAMENT_TZ);
+  const localYmd = ymdInTz(d, localTz);
+  if (localYmd === tournamentYmd) return '';
+  const diff = Math.round((Date.parse(localYmd) - Date.parse(tournamentYmd)) / 86_400_000);
+  return diff > 0 ? ` (+${diff})` : ` (${diff})`;
+}
+
 function EstadoBadge({ status }) {
   if (status === 'live') return <span className="cal-badge cal-badge-live">● En vivo</span>;
   if (status === 'finished') return <span className="cal-badge cal-badge-fin">Finalizado</span>;
   return <span className="cal-badge cal-badge-proximo">Próximo</span>;
 }
 
-function Marcador({ m }) {
+function Marcador({ m, dayOffset }) {
   if (m.status === 'live') {
     return (
       <span className="cal-match-marcador">
@@ -42,11 +65,17 @@ function Marcador({ m }) {
   const hora = m.match_date
     ? new Date(m.match_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '—';
-  return <span className="cal-match-hora">{hora}</span>;
+  return (
+    <span className="cal-match-hora">
+      {hora}
+      {dayOffset ? <span style={{ color: '#94a3b8', fontSize: '0.8rem', marginLeft: 3 }}>{dayOffset}</span> : null}
+    </span>
+  );
 }
 
-// Tarjeta de partido reutilizable (calendario general y "Partidos de hoy")
-function MatchCard({ m, onSelect }) {
+// Tarjeta de partido reutilizable (calendario general y "Partidos de hoy").
+// dayOffset: sufijo " (+1)" mostrado junto a la hora solo en "Partidos de hoy".
+function MatchCard({ m, onSelect, dayOffset }) {
   return (
     <div
       className={`cal-match${m.status === 'live' ? ' is-live' : ''}`}
@@ -61,7 +90,7 @@ function MatchCard({ m, onSelect }) {
           {m.venue ? ` · ${m.venue}` : ''}
         </div>
       </div>
-      <Marcador m={m} />
+      <Marcador m={m} dayOffset={dayOffset} />
       <EstadoBadge status={m.status} />
     </div>
   );
@@ -348,10 +377,12 @@ export default function Calendario() {
 
         {/* Partidos de hoy: subsección destacada arriba del listado general */}
         {!loading && !error && matches && matches.length > 0 && (() => {
-          const hoy = new Date().toLocaleDateString();
+          // "Hoy" = día natural en la zona del torneo (America/Chicago), no la del visitante,
+          // para que los partidos nocturnos de América no se "escapen" al día siguiente en Europa.
+          const hoy = ymdInTz(new Date(), TOURNAMENT_TZ);
           const rank = s => (s === 'live' ? 0 : s === 'finished' ? 2 : 1);
           const deHoy = matches
-            .filter(m => m.match_date && new Date(m.match_date).toLocaleDateString() === hoy)
+            .filter(m => m.match_date && ymdInTz(new Date(m.match_date), TOURNAMENT_TZ) === hoy)
             .sort((a, b) =>
               rank(a.status) - rank(b.status) || (a.match_date ?? '').localeCompare(b.match_date ?? ''));
           return (
@@ -360,7 +391,9 @@ export default function Calendario() {
               {deHoy.length === 0 ? (
                 <div className="cal-today-empty">No hay partidos hoy. Consulta el calendario completo más abajo.</div>
               ) : (
-                deHoy.map(m => <MatchCard key={`hoy-${m.id}`} m={m} onSelect={setSelectedId} />)
+                deHoy.map(m => (
+                  <MatchCard key={`hoy-${m.id}`} m={m} onSelect={setSelectedId} dayOffset={dayOffsetSuffix(m.match_date)} />
+                ))
               )}
             </div>
           );

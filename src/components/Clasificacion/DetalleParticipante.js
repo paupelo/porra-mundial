@@ -15,6 +15,57 @@ function PtsCell({ val }) {
   return <td className={cls}>{n > 0 ? '+' : ''}{n.toFixed(1)}</td>;
 }
 
+// Pequeña etiqueta de estado (ELIMINADO / SUPLENTE → TITULAR) con el estilo discreto
+// ya usado por los badges existentes. `tone`: gris (eliminado) o verde (promovido).
+function EstadoTag({ text, tone = 'gris' }) {
+  const colors = tone === 'verde'
+    ? { bg: '#dcfce7', fg: '#15803d', bd: '#86efac' }
+    : { bg: '#f1f5f9', fg: '#64748b', bd: '#cbd5e1' };
+  return (
+    <span style={{
+      marginLeft: 6, padding: '1px 7px', borderRadius: 999, fontSize: '0.6rem', fontWeight: 800,
+      letterSpacing: 0.3, background: colors.bg, color: colors.fg, border: `1px solid ${colors.bd}`,
+      whiteSpace: 'nowrap',
+    }}>{text}</span>
+  );
+}
+
+// Líneas del once en orden, para agrupar a los jugadores por demarcación.
+const LINEAS = [
+  ['portero', '🧤 Porteros'],
+  ['defensa', '🛡 Defensas'],
+  ['medio', '⚙️ Medios'],
+  ['delantero', '⚽ Delanteros'],
+];
+
+/**
+ * Organiza los jugadores de UNA línea (positionSlot) para mostrar:
+ * activos primero, luego el suplente PROMOVIDO (un titular de su línea eliminado →
+ * pasa a titular y puntúa al 100%), el suplente normal, y al final los eliminados
+ * (sombreados). Devuelve [{ jug, dim, tag }] ya ordenado.
+ */
+function organizaLinea(jugadores, slot, isEliminated) {
+  const enLinea = jugadores.filter(j => j.positionSlot === slot);
+  const titularEliminado = enLinea.some(j => j.role === 'titular' && isEliminated(j.teamId));
+  const rows = enLinea.map(j => {
+    const elim = isEliminated(j.teamId);
+    const promovido = j.role === 'suplente' && titularEliminado;
+    let tag = null;
+    if (j.role === 'titular' && elim) tag = <EstadoTag text="ELIMINADO" />;
+    else if (promovido) tag = <EstadoTag text="SUPLENTE → TITULAR" tone="verde" />;
+    else if (j.role === 'suplente') tag = <EstadoTag text="Suplente" />;
+    // Orden: activos (0) antes que eliminados (1); dentro de activos, titular(0) <
+    // promovido(1) < suplente(2); dentro de eliminados, titular(0) < suplente(1).
+    const activo = !elim;
+    const sub = activo
+      ? (j.role === 'titular' ? 0 : promovido ? 1 : 2)
+      : (j.role === 'titular' ? 0 : 1);
+    return { jug: j, dim: elim, tag, _g: activo ? 0 : 1, _s: sub };
+  });
+  rows.sort((a, b) => a._g - b._g || a._s - b._s);
+  return rows;
+}
+
 function ConceptRow({ item }) {
   const parts = [];
   if (item.phaseMultiplier !== 1) parts.push(`×${item.phaseMultiplier} fase`);
@@ -30,16 +81,17 @@ function ConceptRow({ item }) {
   );
 }
 
-function SelCard({ sel, matchesById }) {
+function SelCard({ sel, matchesById, dim }) {
   const [open, setOpen] = useState(false);
   const [historial, setHistorial] = useState(false);
   return (
-    <div className={`sel-card${sel.isWinner ? ' is-winner' : ''}`}>
+    <div className={`sel-card${sel.isWinner ? ' is-winner' : ''}`} style={dim ? { opacity: 0.45 } : undefined}>
       <div className="sel-card-header" onClick={() => setOpen(o => !o)} style={{ cursor: 'pointer' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="sel-name">{sel.teamName}</span>
             {sel.isWinner && <span className="sel-winner-badge">⭐ GANADOR</span>}
+            {dim && <EstadoTag text="ELIMINADO" />}
           </div>
           <span className={`sel-cat cat-${sel.category}`}>{CAT_LABELS[sel.category] ?? sel.category}</span>
         </div>
@@ -81,11 +133,11 @@ function SelCard({ sel, matchesById }) {
   );
 }
 
-function JugadorCard({ jug, matchesById }) {
+function JugadorCard({ jug, matchesById, dim, tag }) {
   const [open, setOpen] = useState(false);
   const [historial, setHistorial] = useState(false);
   return (
-    <div className="jugador-card">
+    <div className="jugador-card" style={dim ? { opacity: 0.45 } : undefined}>
       <div className="jugador-card-header" onClick={() => setOpen(o => !o)}>
         <div className="jugador-info">
           <span className="jugador-pos">{POS_LABELS[jug.position] ?? jug.position}</span>
@@ -93,6 +145,7 @@ function JugadorCard({ jug, matchesById }) {
             <span className="jugador-name">
               {jug.playerName}
               {jug.isCaptain && <span className="captain-badge">⭐ CAP</span>}
+              {tag}
             </span>
             <div className="jugador-role">{jug.role === 'suplente' ? 'Suplente' : 'Titular'} · {jug.teamId}</div>
           </div>
@@ -170,6 +223,7 @@ export default function DetalleParticipante({ porraId, onBack }) {
   const [score,   setScore]   = useState(null);
   const [porraData, setPorraData] = useState(null);
   const [matchesById, setMatchesById] = useState(null);
+  const [eliminatedTeams, setEliminatedTeams] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('porra'); // 'porra' | 'puntuacion'
 
@@ -178,15 +232,22 @@ export default function DetalleParticipante({ porraId, onBack }) {
       apiGet(`/clasificacion/${porraId}`),
       apiGet(`/porras/${porraId}`),
       apiGet('/matches'),
-    ]).then(([scoreRes, porraRes, matchesRes]) => {
+      apiGet('/phase-results'),
+    ]).then(([scoreRes, porraRes, matchesRes, phaseRes]) => {
       if (scoreRes.status === 'fulfilled') setScore(scoreRes.value);
       if (porraRes.status === 'fulfilled') setPorraData(porraRes.value);
       if (matchesRes.status === 'fulfilled' && Array.isArray(matchesRes.value)) {
         setMatchesById(new Map(matchesRes.value.map(m => [m.id, m])));
       }
+      // Equipos eliminados del torneo (cualquier fase con result='eliminated')
+      if (phaseRes.status === 'fulfilled' && Array.isArray(phaseRes.value)) {
+        setEliminatedTeams(new Set(phaseRes.value.filter(r => r.result === 'eliminated').map(r => r.team_id)));
+      }
       setLoading(false);
     });
   }, [porraId]);
+
+  const isElim = teamId => eliminatedTeams.has(teamId);
 
   if (loading) return <div className="clas-loading">Cargando…</div>;
   if (!score && !porraData) return <div className="clas-loading">No se encontró la porra.</div>;
@@ -308,7 +369,10 @@ export default function DetalleParticipante({ porraId, onBack }) {
             <div className="detalle-section">
               <h3>Selecciones ({selecciones.length})</h3>
               <div className="sel-grid">
-                {selecciones.map(s => <SelCard key={s.teamId} sel={s} matchesById={matchesById} />)}
+                {/* Activas primero, eliminadas (sombreadas) al final */}
+                {[...selecciones]
+                  .sort((a, b) => (isElim(a.teamId) ? 1 : 0) - (isElim(b.teamId) ? 1 : 0))
+                  .map(s => <SelCard key={s.teamId} sel={s} matchesById={matchesById} dim={isElim(s.teamId)} />)}
               </div>
               <SubtotalBloque label="Total selecciones" total={totalSelecciones} />
             </div>
@@ -316,7 +380,20 @@ export default function DetalleParticipante({ porraId, onBack }) {
           {jugadores.length > 0 && (
             <div className="detalle-section">
               <h3>Jugadores ({jugadores.length})</h3>
-              {jugadores.map(j => <JugadorCard key={j.playerId} jug={j} matchesById={matchesById} />)}
+              {/* Agrupados por línea; activos primero, suplente promovido entre los
+                  titulares, eliminados sombreados al final de su línea */}
+              {LINEAS.map(([slot, label]) => {
+                const rows = organizaLinea(jugadores, slot, isElim);
+                if (rows.length === 0) return null;
+                return (
+                  <div key={slot} style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748b', margin: '4px 0 6px' }}>{label}</div>
+                    {rows.map(({ jug, dim, tag }) => (
+                      <JugadorCard key={jug.playerId} jug={jug} matchesById={matchesById} dim={dim} tag={tag} />
+                    ))}
+                  </div>
+                );
+              })}
               <SubtotalBloque label="Total jugadores" total={totalJugadores} />
             </div>
           )}

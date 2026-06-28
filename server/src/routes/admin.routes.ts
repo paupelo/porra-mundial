@@ -7,6 +7,7 @@ import { EventsRepo } from '../repositories/events.repo';
 import { PorrasRepo, ParticipantsRepo } from '../repositories/porras.repo';
 import { sendRejectionEmail } from '../services/email';
 import { recalcularYGuardar } from '../services/recalc';
+import { computeGroupBonuses } from '../services/group-bonuses';
 
 const router = Router();
 router.use(requireAdmin);
@@ -74,6 +75,22 @@ router.delete('/phase-results', async (req, res, next) => {
   try {
     await PhaseResultsRepo.delete(req.body.team_id, req.body.phase);
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/admin/group-bonuses — bonus de fin de fase de grupos.
+ * Deriva del cuadro de dieciseisavos qué 32 equipos avanzan y cuáles quedan
+ * eliminados, y muestra qué puntos recibirían equipos y jugadores. dry_run=true
+ * por defecto: solo previsualiza. Con { confirm: true } escribe team_phase_results
+ * (aditivo, no toca eventos aprobados) y recalcula la clasificación.
+ */
+router.post('/group-bonuses', async (req, res, next) => {
+  try {
+    const apply = req.body?.confirm === true;
+    const preview = await computeGroupBonuses(apply);
+    if (preview.applied) await recalcularYGuardar();
+    res.json(preview);
   } catch (e) { next(e); }
 });
 

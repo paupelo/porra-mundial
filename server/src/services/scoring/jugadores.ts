@@ -9,7 +9,7 @@ import {
   ScoreLineItem,
   TeamPhaseResultRecord,
 } from '../../types';
-import { getPasaRondaMultiplier, getPhaseMultiplier, isBefore } from './multipliers';
+import { getNextPhase, getPasaRondaMultiplier, getPhaseMultiplier, isBefore } from './multipliers';
 import {
   calcDelanteroGoals,
   calcMedioAssists,
@@ -284,15 +284,24 @@ export function calcPlayerScore(
 
     const matchItems = calcMatchPoints(player, event, match, captainMult, suplenteMult, isImprovGoalkeeper);
     items.push(...matchItems);
+  }
 
-    // Pasar ronda: el jugador también cobra +15 × multiplicador cuando su equipo avanza
-    const teamAdvance = allPhaseResults.find(
-      pr => pr.team_id === event.team_id && pr.phase === match.phase && pr.result === 'advanced',
-    );
-    if (teamAdvance) {
-      const prMult = getPasaRondaMultiplier(match.phase);
-      items.push(pItem(`pasaRonda`, match.phase, PENALTIES.pasaRondaJugador, prMult, captainMult, suplenteMult, match.id));
+  // ── Pasar ronda (jugador) ────────────────────────────────────────────────────
+  // +15 × multiplicador de la fase a la que se ACCEDE, a TODO jugador de una
+  // selección que avanza —haya jugado o no, una sola vez por fase—. Se deriva del
+  // resultado de fase del EQUIPO del jugador (no de tener evento en el partido),
+  // así un suplente o un titular que no disputó minutos también lo recibe.
+  for (const pr of allPhaseResults) {
+    if (pr.team_id !== player.team_id || pr.result !== 'advanced') continue;
+    if (!getNextPhase(pr.phase)) continue; // ganar la final no es "pasar ronda"
+    const prMult = getPasaRondaMultiplier(pr.phase);
+    // El suplente cobra ×0.5 salvo que esté activado (un titular de su línea
+    // eliminado antes de esta fase) → ×1. Misma regla que en los puntos por partido.
+    let pasaSuplenteMult = 1;
+    if (role === 'suplente') {
+      pasaSuplenteMult = isSuplenteFull(lineStarterTeamIds, pr.phase, allPhaseResults) ? 1 : 0.5;
     }
+    items.push(pItem('pasaRonda', pr.phase, PENALTIES.pasaRondaJugador, prMult, captainMult, pasaSuplenteMult));
   }
 
   // MVP: bonus plano al final del torneo (sin multiplicador de fase)

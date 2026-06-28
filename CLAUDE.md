@@ -579,6 +579,47 @@ Ahora se cuentan **solo los goles encajados en el intervalo que el jugador estuv
 
 ---
 
+### Fase eliminatoria: bonus de fin de grupos, pasaRonda y eliminados (junio 2026 — inicio de 16avos)
+
+- **Multiplicadores por ronda (confirmados, fuente de verdad `multipliers.ts`):**
+  16avos **×1** · octavos **×1** · cuartos **×1.5** · semis **×2** · final **×3**. Aplican a TODOS
+  los puntos de esa ronda salvo los bonus planos (`ganarMundial`, `mvpMundial`).
+- **Bonus "Pasar Ronda" — multiplicador de la ronda a la que se ACCEDE** (`getPasaRondaMultiplier`
+  = `getPhaseMultiplier(getNextPhase(fase))`): grupos→16avos ×1, octavos→cuartos ×1.5,
+  cuartos→semis ×2, semis→final ×3. Vale para equipos (`selecciones.ts`) y jugadores (`jugadores.ts`).
+- **pasaRonda de JUGADOR a TODA la plantilla que avanza (fix, jun-2026):** antes el +15 solo se daba
+  a jugadores con evento en un partido de esa fase (se perdía para los que no jugaron y podía
+  repetirse 3× en grupos). Ahora `calcPlayerScore` lo concede **una vez por resultado de fase
+  `advanced` del equipo del jugador**, haya jugado o no (se deriva de `team_phase_results`, no de
+  tener evento). El multiplicador de rol (capitán ×2, suplente ×0.5/×1 según promoción) se mantiene.
+- **Bonus de fin de fase de grupos = filas en `team_phase_results`, NO eventos.** El motor deriva
+  todos los bonus de fase de esa tabla: `advanced`@grupos → pasaRonda equipo (+10/+20/+40/+80 ×1) y
+  +15 a sus jugadores; `eliminated`@grupos → penalización "No llegar a 16avos" (−100/−50/−25/−10).
+  La tabla estaba vacía → estos bonus no se aplicaban. Endpoint **`POST /api/admin/group-bonuses`**
+  (`services/group-bonuses.ts`): deriva del cuadro de **dieciseisavos** ya programado quién avanza
+  (los 32 equipos que aparecen en algún partido de 16avos) y quién queda eliminado (jugaron grupos y
+  no están en 16avos); **dry-run por defecto** (loguea/devuelve qué equipos y jugadores reciben qué),
+  y con `{ confirm:true }` escribe `team_phase_results` (upsert idempotente, aditivo — **nunca toca
+  eventos aprobados**) y recalcula. Solo aplica si el cuadro está completo (exactamente 32 avanzan).
+- **Promoción de suplente por eliminación (ya existente, ahora alimentada por los datos de grupos):**
+  `isSuplenteFull` activa al suplente (×1 en vez de ×0.5) cuando un titular de su línea tiene el
+  equipo `eliminated` en una fase anterior. Al escribir los `eliminated` de grupos, los suplentes de
+  líneas con un titular eliminado puntúan al 100% en 16avos en adelante, automáticamente.
+
+### Vista de detalle de participante: eliminados y suplentes promovidos (junio 2026)
+
+En la pestaña "📊 Puntuación" del detalle (`DetalleParticipante.js`), solo lógica de orden/realce
+(sin cambios de diseño de tarjetas, colores ni tipografía). Fuente: `GET /api/phase-results` (equipos
+con `result='eliminated'`, cualquier fase) + la alineación de la porra; el motor ya calcula los puntos
+correctos (suplente promovido al 100%).
+- **Selecciones:** las de países eliminados se muestran **sombreadas (opacity 0.45)** y al **final**,
+  por debajo de las activas; etiqueta "ELIMINADO".
+- **Jugadores agrupados por línea** (porteros/defensas/medios/delanteros): activos primero; el
+  **suplente promovido** (un titular de su línea eliminado) aparece en el bloque de titulares con
+  etiqueta verde **"SUPLENTE → TITULAR"** y sus puntos al 100%; los eliminados, sombreados con
+  etiqueta "ELIMINADO" al final de su línea. La promoción se deriva en el front (titular de la línea
+  con equipo eliminado) y coincide con la del motor.
+
 ## Decisiones de diseño importantes
 
 ### Multiplicadores de fase

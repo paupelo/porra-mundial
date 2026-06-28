@@ -879,6 +879,47 @@ describe('Pasar ronda (jugador, +15 × multiplicador)', () => {
     const pasaItem = r.items.find(i => i.concept === 'pasaRonda');
     expect(pasaItem!.finalPoints).toBe(45);
   });
+
+  test('Jugador que NO disputó minutos pero su selección pasa de grupos a 16avos → +15 igualmente', () => {
+    // Regla: el bonus de pasar ronda se concede a TODO jugador de la selección que
+    // avanza, haya jugado o no. Sin evento en el partido → no hay "por jugar", pero sí pasaRonda.
+    const p = makePlayer('bench', 'esp', 'medio');
+    const m1 = makeMatch('m1', 'esp', 'opp', 'grupos', 2, 0);
+    const pr = makePhaseResult('esp', 'grupos', 'advanced');
+    const r = calcPlayerScore(p, 'titular', 'medio', false, [], [m1], new Map(), [pr], false);
+    const pasa = r.items.filter(i => i.concept === 'pasaRonda');
+    expect(pasa).toHaveLength(1);
+    expect(pasa[0].finalPoints).toBe(15); // 15 × ×1 (16avos)
+    expect(r.items.find(i => i.concept === 'porJugar')).toBeUndefined();
+  });
+
+  test('pasaRonda de grupos se concede UNA sola vez aunque haya jugado los 3 partidos', () => {
+    const p = makePlayer('fwd', 'esp', 'delantero');
+    const g1 = makeMatch('g1', 'esp', 'a', 'grupos', 1, 0);
+    const g2 = makeMatch('g2', 'esp', 'b', 'grupos', 2, 0);
+    const g3 = makeMatch('g3', 'esp', 'c', 'grupos', 0, 0);
+    const evs = new Map([
+      ['g1', makeEvent('g1', 'fwd', 'esp')],
+      ['g2', makeEvent('g2', 'fwd', 'esp')],
+      ['g3', makeEvent('g3', 'fwd', 'esp')],
+    ]);
+    const pr = makePhaseResult('esp', 'grupos', 'advanced');
+    const r = calcPlayerScore(p, 'titular', 'delantero', false, [], [g1, g2, g3], evs, [pr], false);
+    expect(r.items.filter(i => i.concept === 'pasaRonda')).toHaveLength(1);
+  });
+
+  test('Suplente: pasaRonda ×0.5 si su línea sigue completa, ×1 si un titular de su línea fue eliminado antes', () => {
+    const sub = makePlayer('sub', 'esp', 'delantero');
+    const m = makeMatch('m', 'esp', 'a', 'octavos', 1, 0);
+    const prAdv = makePhaseResult('esp', 'octavos', 'advanced');
+    // Línea completa → ×0.5: 15 × 1.5 (cuartos) × 0.5 = 11.25
+    const r1 = calcPlayerScore(sub, 'suplente', 'delantero', false, ['ita'], [m], new Map(), [prAdv], false);
+    expect(r1.items.find(i => i.concept === 'pasaRonda')!.finalPoints).toBe(11.25);
+    // Titular de su línea (ita) eliminado en 16avos (antes de octavos) → suplente activado ×1: 15 × 1.5 = 22.5
+    const prElim = makePhaseResult('ita', 'dieciseisavos', 'eliminated');
+    const r2 = calcPlayerScore(sub, 'suplente', 'delantero', false, ['ita'], [m], new Map(), [prAdv, prElim], false);
+    expect(r2.items.find(i => i.concept === 'pasaRonda')!.finalPoints).toBe(22.5);
+  });
 });
 
 describe('Portero improvisado', () => {

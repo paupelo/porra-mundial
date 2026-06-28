@@ -100,10 +100,16 @@ function kickoffPassed(match: MatchRecord, now: Date): boolean {
   return Number.isFinite(start) && now.getTime() >= start;
 }
 
-/** Resultados de fase automáticos para eliminatorias (sin pisar al admin). */
-async function deriveKnockoutPhaseResults(match: MatchRecord): Promise<void> {
-  if (!KNOCKOUT_PHASES.includes(match.phase) || match.status !== 'finished') return;
-  if (match.home_score === null || match.away_score === null) return;
+/**
+ * Resultados de fase automáticos para eliminatorias (sin pisar al admin). Aplica a
+ * TODAS las rondas KO (16avos…final): el ganador `advanced` (o `winner` en la final),
+ * el perdedor `eliminated`. Devuelve true si escribió algo nuevo, para que el tick
+ * recalcule y aplique sin demora el bonus de pasar ronda (equipo +pasaRonda y todos
+ * sus jugadores +15) y, si procede, la penalización por quedar eliminado.
+ */
+async function deriveKnockoutPhaseResults(match: MatchRecord): Promise<boolean> {
+  if (!KNOCKOUT_PHASES.includes(match.phase) || match.status !== 'finished') return false;
+  if (match.home_score === null || match.away_score === null) return false;
 
   let winnerId: string | null = null;
   if (match.decided_by_penalties) {
@@ -113,20 +119,24 @@ async function deriveKnockoutPhaseResults(match: MatchRecord): Promise<void> {
   } else if (match.away_score > match.home_score) {
     winnerId = match.away_team_id;
   }
-  if (!winnerId) return;
+  if (!winnerId) return false;
   const loserId = winnerId === match.home_team_id ? match.away_team_id : match.home_team_id;
 
   const existing = await PhaseResultsRepo.findAll();
   const has = (teamId: string) => existing.some(r => r.team_id === teamId && r.phase === match.phase);
+  let wrote = false;
 
   if (!has(winnerId)) {
     await PhaseResultsRepo.upsert(winnerId, match.phase, match.phase === 'final' ? 'winner' : 'advanced');
     log(`fase ${match.phase}: ${winnerId} → ${match.phase === 'final' ? 'winner' : 'advanced'}`);
+    wrote = true;
   }
   if (!has(loserId)) {
     await PhaseResultsRepo.upsert(loserId, match.phase, 'eliminated');
     log(`fase ${match.phase}: ${loserId} → eliminated`);
+    wrote = true;
   }
+  return wrote;
 }
 
 // ─── Tick principal ───────────────────────────────────────────────────────────
@@ -236,7 +246,7 @@ async function tick(): Promise<void> {
         log(`eventos de ${m.id} aplicados automáticamente (${after.total})`);
         didWork = true;
       }
-      await deriveKnockoutPhaseResults(m);
+      if (await deriveKnockoutPhaseResults(m)) didWork = true;
     }
 
     if (didWork) {

@@ -128,29 +128,30 @@ export function parseEvents(html: string): BesoccerEvent[] {
 
 // ─── Alineaciones ────────────────────────────────────────────────────────────
 
-/** Titulares (panel-lineup) y suplentes (panel-bench) de cada lado. */
+/**
+ * Titulares de cada equipo desde el campo (`panel-lineup`). BeSoccer pinta los 22
+ * titulares EN ORDEN: primeros 11 = local, siguientes 11 = visitante (verificado con
+ * Sudáfrica-Canadá en vivo). El banquillo NO se parsea: los suplentes que entran se
+ * deducen de los eventos de cambio (que ya traen el lado y el minuto), y los que no
+ * entran no puntúan, así que no hacen falta.
+ */
 export function parseLineup(alineacionesHtml: string): LineupEntry[] {
-  const entries: LineupEntry[] = [];
-  // El documento trae dos lineup-container (local y visitante) en orden.
-  const containers = alineacionesHtml.split('class="panel panel-lineup"');
-  // containers[1] = local, containers[2] = visitante (cada uno seguido de su panel-bench)
-  const sides: Side[] = ['local', 'visitor'];
-  for (let i = 1; i <= 2 && i < containers.length; i++) {
-    const side = sides[i - 1];
-    const seg = containers[i].split('mod_lineup')[0]; // hasta el siguiente módulo
-    const benchSplit = seg.split('panel panel-bench');
-    const startersHtml = benchSplit[0];
-    const benchHtml = benchSplit[1] ?? '';
-    for (const [html, isStarter] of [[startersHtml, true], [benchHtml, false]] as const) {
-      for (const m of html.matchAll(/\/jugador\/([a-z0-9-]+)-(\d+)"[^>]*>(?:\s*<img[^>]*alt="([^"]*)")?/g)) {
-        const id = m[2];
-        const name = (m[3] ?? m[1].replace(/-/g, ' ')).trim();
-        if (entries.some(e => e.fifaPlayerId === id)) continue;
-        entries.push({ fifaPlayerId: id, fifaTeamId: side, name, isStarter });
-      }
-    }
+  const field = (alineacionesHtml.split('class="panel panel-lineup"')[1] ?? '').split('panel panel-bench')[0];
+  const seen = new Set<string>();
+  const players: { id: string; name: string }[] = [];
+  for (const m of field.matchAll(/\/jugador\/([a-z0-9-]+)-(\d+)"[^>]*>(?:\s*<img[^>]*alt="([^"]*)")?/g)) {
+    const id = m[2];
+    if (seen.has(id)) continue;
+    seen.add(id);
+    players.push({ id, name: (m[3] ?? m[1].replace(/-/g, ' ')).trim() });
   }
-  return entries;
+  const xi = players.slice(0, 22); // 11 local + 11 visitante
+  return xi.map((p, i) => ({
+    fifaPlayerId: p.id,
+    fifaTeamId: (i < 11 ? 'local' : 'visitor') as Side,
+    name: p.name,
+    isStarter: true,
+  }));
 }
 
 // ─── Agregación: eventos + alineación → tallies ──────────────────────────────
@@ -185,6 +186,7 @@ export function aggregateBesoccer(
 
   const subOut = new Map<string, number>(); // playerId → minuto de salida
   const subIn = new Map<string, number>();   // playerId → minuto de entrada
+  const subInSide = new Map<string, Side>(); // playerId que entra → su lado
   const redMin = new Map<string, number>();
   const yellow = new Map<string, number>();
 
@@ -230,7 +232,7 @@ export function aggregateBesoccer(
       const out = ids.find(id => starterIds.has(id) && !subIn.has(id)) ?? ev.playerId;
       const inn = ids.find(id => id !== out);
       subOut.set(out, ev.minute);
-      if (inn) subIn.set(inn, ev.minute);
+      if (inn) { subIn.set(inn, ev.minute); subInSide.set(inn, ev.side); }
     } else if (t.includes('asist')) {
       get(ev.playerId, side).assists++;
     }
@@ -257,6 +259,18 @@ export function aggregateBesoccer(
         tally.minutes_played = Math.max(0, (tally.minute_out ?? matchDurationMin) - tally.minute_in);
       }
     }
+  }
+
+  // Suplentes que ENTRARON (no están en el once de inicio): su minuto de entrada
+  // sale del evento de cambio. Así reciben "por jugar" (+5) y, si son portero/
+  // defensa, su portería a cero / gol encajado usa el intervalo correcto.
+  for (const [pid, minIn] of subIn) {
+    if (starterIds.has(pid)) continue;
+    const tally = get(pid, subInSide.get(pid) ?? 'local');
+    tally.minute_in = Math.min(minIn, matchDurationMin);
+    const out = exit(pid);
+    tally.minute_out = out !== undefined ? Math.min(out, matchDurationMin) : null;
+    tally.minutes_played = Math.max(0, (tally.minute_out ?? matchDurationMin) - tally.minute_in);
   }
 
   void sideOf;

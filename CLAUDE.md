@@ -606,6 +606,12 @@ Ahora se cuentan **solo los goles encajados en el intervalo que el jugador estuv
   y aún no hay ningún resultado de fase `grupos` (idempotente: corre una vez). Llama a
   `computeGroupBonuses(true)` y recalcula. Así los bonus de fin de grupos se puntúan sin intervención
   del admin; el endpoint `POST /api/admin/group-bonuses` queda como disparo/preview manual.
+- **TODAS las rondas KO también automáticas:** `deriveKnockoutPhaseResults` (scheduler) escribe, al
+  acabar cada partido KO, `advanced` al ganador (`winner` en la final) y `eliminated` al perdedor —
+  en 16avos, octavos, cuartos, semis y final. Ahora **devuelve si escribió algo y dispara el recálculo
+  en el mismo tick**, así el bonus de pasar ronda (equipo +pasaRonda con el multiplicador de la ronda
+  a la que se accede, y +15 a TODOS sus jugadores) se aplica sin demora. En resumen: grupos→16avos
+  (`computeGroupBonuses`) y todas las rondas KO (`deriveKnockoutPhaseResults`) puntúan solas.
 - **Promoción de suplente por eliminación (ya existente, ahora alimentada por los datos de grupos):**
   `isSuplenteFull` activa al suplente (×1 en vez de ×0.5) cuando un titular de su línea tiene el
   equipo `eliminated` en una fase anterior. Al escribir los `eliminated` de grupos, los suplentes de

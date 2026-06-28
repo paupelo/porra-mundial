@@ -41,6 +41,8 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE match_player_events ADD COLUMN IF NOT EXISTS minute_out INTEGER',
     'ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_goal_minutes INTEGER[]',
     'ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_goal_minutes INTEGER[]',
+    // Fuente BeSoccer para fase KO (junio 2026): URL del partido en es.besoccer.com.
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS besoccer_url TEXT',
     // Autocorrección post-partido (junio 2026): versión de la lógica con la que se
     // derivaron los eventos. El scheduler re-scrapea los partidos cuya versión sea
     // inferior a RECONCILE_VERSION para reaplicar cambios de scraper/scoring sin admin.

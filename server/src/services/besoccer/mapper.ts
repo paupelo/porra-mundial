@@ -154,6 +154,26 @@ export function parseLineup(alineacionesHtml: string): LineupEntry[] {
   }));
 }
 
+/**
+ * Nombres de todos los jugadores citados en una página (anchor `/jugador/{slug}-{id}`
+ * con su `alt`/texto). Sirve para conciliar también a los suplentes que entran (que
+ * no están en el once de inicio) por su nombre real, no por el slug.
+ */
+export function parsePlayerNames(html: string): Map<string, string> {
+  const names = new Map<string, string>();
+  // 1) <img ... alt="Nombre"> <a ... /jugador/slug-id>   (popups y filas)
+  for (const m of html.matchAll(/alt="([^"]+)"\s*\/?>?\s*<a[^>]*\/jugador\/[a-z0-9-]+-(\d+)"/g)) {
+    if (!names.has(m[2])) names.set(m[2], m[1].trim());
+  }
+  // 2) /jugador/slug-id"> Nombre <   (texto del propio anchor)
+  for (const m of html.matchAll(/\/jugador\/([a-z0-9-]+)-(\d+)"[^>]*>\s*([^<]+?)\s*</g)) {
+    const txt = m[3].trim();
+    if (txt && !/^\s*$/.test(txt) && !names.has(m[2])) names.set(m[2], txt);
+    else if (!names.has(m[2])) names.set(m[2], m[1].replace(/-/g, ' '));
+  }
+  return names;
+}
+
 // ─── Agregación: eventos + alineación → tallies ──────────────────────────────
 
 export interface BesoccerAggregation {

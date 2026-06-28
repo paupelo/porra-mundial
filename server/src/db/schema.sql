@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS matches (
   live_away_score      INTEGER,
   home_goal_minutes    INTEGER[],
   away_goal_minutes    INTEGER[],
+  besoccer_url         TEXT,
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 

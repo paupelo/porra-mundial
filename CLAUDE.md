@@ -665,13 +665,24 @@ ingeniería inversa contra datos reales del Mundial 2026:
   los **eventos** ~83% (faltaba 1 gol en el fixture, pendiente de afinar); la **separación de equipos
   en la alineación** y los penaltis/tanda/autogoles **aún no están validados** (BeSoccer pinta los 22
   titulares en un solo campo; faltan ejemplos reales en vivo de penaltis/tanda).
-- **Endpoint de SOLO LECTURA** `POST /api/admin/besoccer/preview { url }`: descarga un partido de
-  BeSoccer y devuelve lo parseado (marcador/eventos/alineación) **sin tocar la clasificación** — para
-  validar el parser contra partidos reales.
-- ⚠️ **BeSoccer NO dirige la puntuación KO todavía.** La fase KO se sigue puntuando con el pipeline de
-  **FIFA** (validado y en vivo) hasta que el parser de BeSoccer esté validado evento a evento contra
-  partidos reales (especialmente penaltis en juego/tanda, autogoles, minutos de suplentes y portería a
-  cero). ⚠️ Posible **divergencia de datos** BeSoccer vs FIFA: cruzar resultados antes de conmutar.
+- `services/besoccer/sync.ts` (`syncBesoccerMatch`): orquesta descarga→parseo→conciliación→guardado
+  **reusando `reconcileAndSaveTallies` de FIFA** (borradores `is_confirmed=0`, conciliación por nombre,
+  intervalo en campo, minutos de gol) y escribe el marcador (en vivo: `minute`+`live_*_score`; final:
+  `home/away_score`+`decided_by_penalties`). El once para conciliar cubre titulares + suplentes que
+  entraron (nombre real vía `parsePlayerNames`). `parseLineup` validado en vivo (11 local + 11 visitante,
+  el campo trae los 22 en orden). 186 tests (9 nuevos de BeSoccer).
+- **Enrutado en el scheduler tras un flag:** `KO_SOURCE` (env, `'fifa'` por defecto o `'besoccer'`). Con
+  `'besoccer'`, los partidos KO que tengan `matches.besoccer_url` (columna nueva) se scrapean de BeSoccer
+  en vivo y al final, **con FIFA como fallback automático** si BeSoccer falla o no hay URL; la fase de
+  grupos siempre usa FIFA. Por defecto (`'fifa'`) el enrutado está inerte y el KO sigue puntuando con FIFA.
+- **Admin:** `POST /api/admin/besoccer/preview { url }` (SOLO LECTURA, valida el parser) y
+  `POST /api/admin/besoccer/sync { matchId, url?, live?, confirm? }` (ESCRIBE: guarda eventos+marcador y
+  recalcula; `url` se guarda en `besoccer_url`; fallback manual del scraper).
+- ⚠️ **Antes de conmutar `KO_SOURCE=besoccer` en producción** hay que: (a) validar evento a evento contra
+  un KO real los casos sin ejemplo aún (penaltis en juego/tanda, autogoles, paradas, `penalty_winner_id`
+  de la tanda, el "gol que faltaba" 5/6); (b) cruzar el **marcador de BeSoccer con FIFA** (posible
+  divergencia; BeSoccer etiquetó este KO como "Jornada 1"); (c) comprobar la conciliación de nombres.
+  Mientras tanto FIFA sigue puntuando el KO (validado y en vivo).
 
 ### Motor puro sin I/O
 `calcularClasificacion()` no toca la BD. Recibe arrays de tipos y devuelve la clasificación completa. Esto permite testear exhaustivamente sin mocks ni bases de datos de test.

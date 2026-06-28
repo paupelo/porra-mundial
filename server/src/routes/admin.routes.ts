@@ -10,6 +10,7 @@ import { recalcularYGuardar } from '../services/recalc';
 import { computeGroupBonuses } from '../services/group-bonuses';
 import { fetchBesoccerMatch } from '../services/besoccer/client';
 import { parseScore, parseEvents, parseLineup } from '../services/besoccer/mapper';
+import { syncBesoccerMatch } from '../services/besoccer/sync';
 
 const router = Router();
 router.use(requireAdmin);
@@ -122,6 +123,31 @@ router.post('/besoccer/preview', async (req, res, next) => {
       events,
       lineup,
     });
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/admin/besoccer/sync — ESCRIBE: descarga un partido de BeSoccer, guarda
+ * sus eventos como borradores (mismo pipeline que FIFA) y su marcador, y recalcula.
+ * Fallback manual del scraper automático. Body: { matchId, url?, live?, confirm? }.
+ * - url: si se pasa, se guarda en matches.besoccer_url; si no, se usa la guardada.
+ * - live: true = marcador/eventos provisionales (is_live); por defecto según estado.
+ * - confirm: true = auto-confirma los eventos del partido (cuenta para la clasificación).
+ */
+router.post('/besoccer/sync', async (req, res, next) => {
+  try {
+    const match = await MatchesRepo.findById(String(req.body?.matchId ?? ''));
+    if (!match) { res.status(404).json({ error: 'Partido no encontrado' }); return; }
+    const url = String(req.body?.url ?? match.besoccer_url ?? '');
+    if (!url) { res.status(400).json({ error: 'Falta la URL de BeSoccer (pásala en "url" o guárdala en el partido)' }); return; }
+    if (req.body?.url && req.body.url !== match.besoccer_url) {
+      await MatchesRepo.update(match.id, { besoccer_url: url });
+    }
+    const isLive = req.body?.live ?? (match.status === 'live');
+    const summary = await syncBesoccerMatch(match, url, isLive);
+    if (req.body?.confirm === true && !isLive) await EventsRepo.confirmAll(match.id);
+    const results = await recalcularYGuardar();
+    res.json({ ...summary, recalculated: results.length });
   } catch (e) { next(e); }
 });
 

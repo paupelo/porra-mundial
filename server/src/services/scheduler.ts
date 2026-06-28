@@ -25,11 +25,25 @@ import { EventsRepo } from '../repositories/events.repo';
 import { syncCalendar, syncLiveMatch, syncMatchEvents, CalendarSyncSummary } from './fifa/sync';
 import { recalcularYGuardar } from './recalc';
 import { computeGroupBonuses } from './group-bonuses';
+import { syncBesoccerMatch } from './besoccer/sync';
 import { MatchRecord } from '../types';
 
 const TICK_MS = 60_000;
 const FAST_CALENDAR_MIN = 10;              // refresco con partidos "calientes"
 const KNOCKOUT_PHASES = ['dieciseisavos', 'octavos', 'cuartos', 'semifinales', 'final'];
+
+/**
+ * Fuente de datos de la fase KO: 'fifa' (por defecto) o 'besoccer'. Con 'besoccer',
+ * los partidos KO que tengan `besoccer_url` se scrapean desde BeSoccer (en vivo y
+ * final), con FIFA como fallback automático si BeSoccer falla o no hay URL. La fase
+ * de grupos siempre usa FIFA.
+ */
+const KO_SOURCE = (process.env.KO_SOURCE ?? 'fifa').toLowerCase();
+
+/** ¿Este partido debe scrapearse desde BeSoccer? (KO + flag + URL guardada). */
+function useBesoccer(m: MatchRecord): boolean {
+  return KO_SOURCE === 'besoccer' && KNOCKOUT_PHASES.includes(m.phase) && !!m.besoccer_url;
+}
 
 /**
  * Versión de la lógica de reconciliación (scraper + scoring de eventos).
@@ -198,8 +212,17 @@ async function tick(): Promise<void> {
     // eventos en vivo (is_live=1). Cubre también prórroga y penaltis.
     let liveFinished = false;
     for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'live')) {
-      const s = await syncLiveMatch(m);
       didWork = true; // recalcular cada tick mientras haya partidos en vivo
+      if (useBesoccer(m)) {
+        try {
+          const s = await syncBesoccerMatch(m, m.besoccer_url!, true);
+          log(`en vivo (BeSoccer) ${m.id}: min ${s.minute ?? '?'} · ${s.homeScore ?? '-'}–${s.awayScore ?? '-'} · ${s.eventsParsed} ev · ${s.saved} guardados`);
+          continue; // el cambio de estado live→finished lo marca el refresco del calendario (FIFA)
+        } catch (e) {
+          log(`BeSoccer en vivo falló para ${m.id}; fallback a FIFA: ${(e as Error).message}`);
+        }
+      }
+      const s = await syncLiveMatch(m);
       log(`en vivo ${m.id}: min ${s.minute ?? '?'} · ${s.homeScore ?? '-'}–${s.awayScore ?? '-'} · ${s.eventsSaved} eventos`);
       if (s.finishedDetected) liveFinished = true;
     }
@@ -228,12 +251,25 @@ async function tick(): Promise<void> {
         if (needsIntervalBackfill) intervalBackfillAttempted.add(m.id);
         log(needsVerify
           ? `revisando eventos de ${m.id} (re-derivación v${m.reconcile_version ?? 0}→${RECONCILE_VERSION})…`
-          : `scrapeando eventos de ${m.id} (FIFA ${m.fifa_match_id})…`);
-        const summary = await syncMatchEvents(m);
-        log(`eventos de ${m.id}: ${summary.saved} guardados/actualizados, ${summary.skippedManual} manuales intactos, ${summary.unreconciled.length} sin conciliar`);
-        // Sellar con la versión actual SOLO si FIFA respondió (si no, se reintenta
+          : `scrapeando eventos de ${m.id} (${useBesoccer(m) ? 'BeSoccer' : 'FIFA ' + m.fifa_match_id})…`);
+        let fetched = false;
+        if (useBesoccer(m)) {
+          try {
+            const s = await syncBesoccerMatch(m, m.besoccer_url!, false);
+            fetched = true;
+            log(`eventos (BeSoccer) de ${m.id}: ${s.saved} guardados, ${s.skippedManual} manuales intactos, ${s.unreconciled.length} sin conciliar`);
+          } catch (e) {
+            log(`BeSoccer final falló para ${m.id}; fallback a FIFA: ${(e as Error).message}`);
+          }
+        }
+        if (!fetched) {
+          const summary = await syncMatchEvents(m);
+          fetched = summary.timelineFetched;
+          log(`eventos de ${m.id}: ${summary.saved} guardados/actualizados, ${summary.skippedManual} manuales intactos, ${summary.unreconciled.length} sin conciliar`);
+        }
+        // Sellar con la versión actual SOLO si la fuente respondió (si no, se reintenta
         // en el próximo tick en vez de marcar el partido como revisado en falso).
-        if (summary.timelineFetched && needsVerify) {
+        if (fetched && needsVerify) {
           await MatchesRepo.update(m.id, { reconcile_version: RECONCILE_VERSION });
         }
         didWork = true;

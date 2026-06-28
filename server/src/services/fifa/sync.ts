@@ -179,7 +179,7 @@ interface SaveTalliesResult {
   unreconciled: Array<{ fifaPlayerId: string; name: string }>;
 }
 
-async function reconcileAndSaveTallies(
+export async function reconcileAndSaveTallies(
   match: MatchRecord,
   tallies: Map<string, PlayerTally>,
   goalEvents: GoalEvent[],

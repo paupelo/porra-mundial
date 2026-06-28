@@ -74,6 +74,8 @@ export interface MatchRecord {
    * el scraper/scoring se reaplica solo a todo lo ya jugado, sin admin. Default 0.
    */
   reconcile_version?: number | null;
+  /** URL del partido en es.besoccer.com (fuente de datos de la fase KO). */
+  besoccer_url?: string | null;
 }
 
 export interface MatchPlayerEventRecord {

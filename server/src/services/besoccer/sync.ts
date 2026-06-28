@@ -45,17 +45,19 @@ export async function syncBesoccerMatch(
   isLive: boolean,
 ): Promise<BesoccerSyncSummary> {
   const pages = await fetchBesoccerMatch(besoccerUrl);
-  const evHtml = pages.eventos || pages.main;
-  const score = parseScore(evHtml);
-  const events = parseEvents(evHtml);
+  // Los GOLES y tarjetas vienen en las FILAS del resumen (página principal); los
+  // cambios en los popups (ambas páginas). Se combinan para no perder ninguno.
+  const combined = `${pages.main}\n${pages.eventos}`;
+  const score = parseScore(pages.main || pages.eventos);
+  const events = parseEvents(combined);
   const lineup = parseLineup(pages.alineaciones || pages.main);
-  const minute = isLive ? (parseLiveMinute(pages.main) ?? parseLiveMinute(evHtml)) : null;
+  const minute = isLive ? (parseLiveMinute(pages.main) ?? parseLiveMinute(pages.eventos)) : null;
 
   // Mapa de nombres: el once (campo) + todos los jugadores citados en las páginas
   // (para conciliar también a los suplentes que entran, que no están en el once).
   const names = new Map<string, string>();
   for (const l of lineup) names.set(l.fifaPlayerId, l.name);
-  for (const src of [pages.alineaciones, evHtml, pages.main]) {
+  for (const src of [pages.alineaciones, combined]) {
     for (const [id, n] of parsePlayerNames(src)) if (!names.get(id)) names.set(id, n);
   }
 

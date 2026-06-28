@@ -23,11 +23,32 @@ function popup(order: number, minute: number, playerId: string, type: string, si
   return `<div id="popup_event_orderMin_${order}_${minute}_${playerId}" class="popup-box hidden"><div class="panel-head"><span class="t-up">${type}</span><img alt="${side}"></div><a class="main-text" href="https://es.besoccer.com/jugador/${slug}-${playerId}">Nombre</a>${extra}</div>`;
 }
 
+// Fila del resumen (table-played-match): goles/tarjetas con el lado por col-side.
+function row(min: string, side: 'local' | 'visitor', type: string, id: string): string {
+  const content = `<div class="inner-rows"><img src="https://cdn.resfu.com/media/img/events/accion1.png" alt="${type}"><div class="col-name"><a href="https://es.besoccer.com/jugador/p-${id}">Nombre</a></div></div>`;
+  const left = side === 'local' ? content : '';
+  const right = side === 'visitor' ? content : '';
+  return `<div class="table-played-match"><div class="col-side left">${left}</div><div class="col-mid-rows result"><div class="min ">${min}</div></div><div class="col-side right">${right}</div></div>`;
+}
+
 describe('BeSoccer mapper — parseEvents', () => {
-  it('extrae minuto, tipo, lado y jugador de un popup', () => {
-    const evs = parseEvents(popup(1, 60, '149354', 'Gol', 'local', 'r-mahrez'));
+  it('extrae minuto, tipo, lado y jugador de un popup (cambios)', () => {
+    const evs = parseEvents(popup(1, 60, '149354', 'Sustitución', 'local', 'r-mahrez', ['9999']));
     expect(evs).toHaveLength(1);
-    expect(evs[0]).toMatchObject({ minute: 60, type: 'Gol', side: 'local', playerId: '149354' });
+    expect(evs[0]).toMatchObject({ minute: 60, type: 'Sustitución', side: 'local', playerId: '149354' });
+  });
+
+  it('extrae un GOL de la FILA del resumen con su lado (col-side) y descuento', () => {
+    // El gol no está en popups: viene como fila. Lado = col-side derecho → visitante.
+    const evs = parseEvents(row("90'+2", 'visitor', 'Gol', '355266'));
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({ minute: 92, type: 'Gol', side: 'visitor', playerId: '355266' });
+  });
+
+  it('deduplica el mismo gol si aparece en fila Y en popup', () => {
+    const html = row("60", 'local', 'Gol', '149354') + popup(1, 60, '149354', 'Gol', 'local', 'r-mahrez');
+    const goals = parseEvents(html).filter(e => /gol/i.test(e.type));
+    expect(goals).toHaveLength(1);
   });
 });
 

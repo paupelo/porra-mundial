@@ -95,8 +95,72 @@ export interface BesoccerEvent {
   shootout: boolean;
 }
 
-/** Extrae todos los eventos de los popups `popup_event_orderMin_*`. */
+/** Categoría gruesa de un evento, para deduplicar fila vs popup del mismo hecho. */
+function eventCategory(type: string): string {
+  const t = norm(type);
+  if (t.includes('propia')) return 'og';
+  if (t.includes('gol')) return 'goal';
+  if (t.includes('tarjeta') || t.includes('roja') || t.includes('amarilla')) return 'card';
+  if (t.includes('sustitu') || t.includes('cambio')) return 'sub';
+  if (t.includes('penal')) return 'pen';
+  return t;
+}
+
+/**
+ * Eventos de las FILAS del resumen (`table-played-match`): goles, tarjetas, penaltis,
+ * autogoles. El tipo viene en el `alt` de la imagen de acción (`accionN.png` →
+ * "Gol", "Tarjeta amarilla", "Tarjeta roja"…), el LADO según en qué `col-side`
+ * (left=local / right=visitante, separados por `col-mid-rows`) está el contenido, el
+ * minuto en `class="min"` (suma el descuento, "90'+2"→92) y el jugador en el anchor.
+ * Verificado con Sudáfrica 0-1 Canadá (gol de Eustáquio 90'+2, visitante) — los goles
+ * NO siempre están en los popups, así que las filas son la fuente fiable de goles.
+ */
+function parseEventRows(html: string): BesoccerEvent[] {
+  const out: BesoccerEvent[] = [];
+  const rows = html.split('table-played-match');
+  for (let i = 1; i < rows.length; i++) {
+    const block = rows[i].slice(0, 1800);
+    const minM = block.match(/class="min[^"]*">\s*(\d+)(?:'?\+(\d+))?/);
+    if (!minM) continue;
+    const minute = parseInt(minM[1], 10) + (minM[2] ? parseInt(minM[2], 10) : 0);
+    const halves = block.split('col-mid-rows');
+    const sides: Array<[Side, string]> = [['local', halves[0]], ['visitor', halves[1] ?? '']];
+    for (const [side, part] of sides) {
+      const img = part.match(/events\/accion\d+[a-z_]*\.png" alt="([^"]+)"/);
+      if (!img) continue;
+      const type = img[1].trim();
+      const tnorm = norm(type);
+      if (!/gol|tarjeta|amarilla|roja|penal|propia/.test(tnorm)) continue; // falta u otros: ignorar
+      const pm = part.match(/\/jugador\/[a-z0-9-]+-(\d+)"[^>]*>\s*([^<]+?)\s*</);
+      if (!pm) continue;
+      out.push({
+        minute, type, side, playerId: pm[1], playerName: pm[2].trim(),
+        playerIds: [pm[1]], shootout: /tanda|penaltis/.test(tnorm),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Eventos del partido = FILAS (goles/tarjetas/penaltis, fuente fiable) + POPUPS
+ * (cambios, con los dos jugadores). Se deduplica por (minuto, jugador, categoría)
+ * dando prioridad a la fila (lado más fiable) sobre el popup del mismo hecho.
+ */
 export function parseEvents(html: string): BesoccerEvent[] {
+  const seen = new Set<string>();
+  const all: BesoccerEvent[] = [];
+  for (const e of [...parseEventRows(html), ...parseEventPopups(html)]) {
+    const key = `${e.minute}_${e.playerId}_${eventCategory(e.type)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    all.push(e);
+  }
+  return all;
+}
+
+/** Extrae los eventos de los popups `popup_event_orderMin_*` (sobre todo cambios). */
+export function parseEventPopups(html: string): BesoccerEvent[] {
   const parts = html.split('id="popup_event_orderMin_');
   const out: BesoccerEvent[] = [];
   const seen = new Set<string>();

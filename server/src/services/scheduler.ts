@@ -24,6 +24,7 @@ import { MatchesRepo, PhaseResultsRepo } from '../repositories/matches.repo';
 import { EventsRepo } from '../repositories/events.repo';
 import { syncCalendar, syncLiveMatch, syncMatchEvents, CalendarSyncSummary } from './fifa/sync';
 import { recalcularYGuardar } from './recalc';
+import { computeGroupBonuses } from './group-bonuses';
 import { MatchRecord } from '../types';
 
 const TICK_MS = 60_000;
@@ -163,6 +164,24 @@ async function tick(): Promise<void> {
       log(`calendario: ${summary.total} partidos FIFA · ${summary.created} creados · ${summary.updated} actualizados · ${summary.linked} enlazados · ${summary.skipped.length} omitidos`);
       if (summary.created || summary.updated || summary.linked) didWork = true;
       matches = await MatchesRepo.findAll();
+    }
+
+    // Avance de fase de GRUPOS automático (sin admin): en cuanto el cuadro de
+    // dieciseisavos está completo (32 equipos), se derivan y puntúan los bonus de
+    // fin de grupos (pasaRonda a equipos y jugadores, penalización a eliminados).
+    // Idempotente: solo corre mientras no haya ningún resultado de fase 'grupos'.
+    if (!(await PhaseResultsRepo.findAll()).some(r => r.phase === 'grupos')) {
+      const r16Teams = new Set<string>();
+      for (const m of matches.filter(x => x.phase === 'dieciseisavos')) {
+        r16Teams.add(m.home_team_id); r16Teams.add(m.away_team_id);
+      }
+      if (r16Teams.size === 32) {
+        const gb = await computeGroupBonuses(true);
+        if (gb.applied) {
+          log(`fase de grupos derivada automáticamente: ${gb.totals.advancing} avanzan, ${gb.totals.eliminated} eliminados`);
+          didWork = true;
+        }
+      }
     }
 
     // Partidos EN JUEGO: poll cada tick (60s) → minuto, marcador provisional y

@@ -601,6 +601,11 @@ Ahora se cuentan **solo los goles encajados en el intervalo que el jugador estuv
   no están en 16avos); **dry-run por defecto** (loguea/devuelve qué equipos y jugadores reciben qué),
   y con `{ confirm:true }` escribe `team_phase_results` (upsert idempotente, aditivo — **nunca toca
   eventos aprobados**) y recalcula. Solo aplica si el cuadro está completo (exactamente 32 avanzan).
+- **Aplicación AUTOMÁTICA sin admin (jun-2026):** el scheduler (`scheduler.ts`), en cada tick,
+  deriva y aplica solo los avances de grupos en cuanto el cuadro de 16avos está completo (32 equipos)
+  y aún no hay ningún resultado de fase `grupos` (idempotente: corre una vez). Llama a
+  `computeGroupBonuses(true)` y recalcula. Así los bonus de fin de grupos se puntúan sin intervención
+  del admin; el endpoint `POST /api/admin/group-bonuses` queda como disparo/preview manual.
 - **Promoción de suplente por eliminación (ya existente, ahora alimentada por los datos de grupos):**
   `isSuplenteFull` activa al suplente (×1 en vez de ×0.5) cuando un titular de su línea tiene el
   equipo `eliminated` en una fase anterior. Al escribir los `eliminated` de grupos, los suplentes de

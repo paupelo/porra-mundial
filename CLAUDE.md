@@ -645,6 +645,28 @@ Tarjeta roja, penalti cometido, penalti fallado, gol en propia: se aplican con `
 ### BeSoccer es opcional y no bloquea nada
 El sistema funciona al 100% sin el scraper: el admin carga eventos a mano. BeSoccer solo genera borradores (`is_confirmed: 0`) que el admin revisa y confirma. Desactivar con `BESOCCER_ENABLED=false` en `.env`.
 
+### Scraper BeSoccer para fase KO — fundamentos (jun-2026, EN PROGRESO)
+Objetivo del usuario: que la fase eliminatoria se puntúe desde BeSoccer (es.besoccer.com). Tras
+ingeniería inversa contra datos reales del Mundial 2026:
+- **BeSoccer NO tiene API JSON pública**, pero SÍ renderiza en el HTML: el **marcador** en el JSON-LD
+  `SportsEvent` (campo `description`, "X - Y"), los **eventos** en bloques
+  `popup_event_orderMin_{orden}_{minuto}_{idJugador}` (tipo en `<span class="t-up">`, lado
+  `alt="local|visitor"`, jugador `/jugador/{slug}-{id}`) y las **alineaciones** en `panel-lineup`
+  (titulares, ambos equipos en un mismo campo) / `panel-bench`.
+- `services/besoccer/mapper.ts` (`parseScore`/`parseEvents`/`parseLineup`/`aggregateBesoccer`,
+  reusa los tipos del mapper de FIFA) + `services/besoccer/client.ts` (descarga página + `/eventos`
+  + `/alineaciones`). **Estado de validación:** el **marcador** parsea perfecto (Argelia 3-3 Austria);
+  los **eventos** ~83% (faltaba 1 gol en el fixture, pendiente de afinar); la **separación de equipos
+  en la alineación** y los penaltis/tanda/autogoles **aún no están validados** (BeSoccer pinta los 22
+  titulares en un solo campo; faltan ejemplos reales en vivo de penaltis/tanda).
+- **Endpoint de SOLO LECTURA** `POST /api/admin/besoccer/preview { url }`: descarga un partido de
+  BeSoccer y devuelve lo parseado (marcador/eventos/alineación) **sin tocar la clasificación** — para
+  validar el parser contra partidos reales.
+- ⚠️ **BeSoccer NO dirige la puntuación KO todavía.** La fase KO se sigue puntuando con el pipeline de
+  **FIFA** (validado y en vivo) hasta que el parser de BeSoccer esté validado evento a evento contra
+  partidos reales (especialmente penaltis en juego/tanda, autogoles, minutos de suplentes y portería a
+  cero). ⚠️ Posible **divergencia de datos** BeSoccer vs FIFA: cruzar resultados antes de conmutar.
+
 ### Motor puro sin I/O
 `calcularClasificacion()` no toca la BD. Recibe arrays de tipos y devuelve la clasificación completa. Esto permite testear exhaustivamente sin mocks ni bases de datos de test.
 

@@ -8,6 +8,8 @@ import { PorrasRepo, ParticipantsRepo } from '../repositories/porras.repo';
 import { sendRejectionEmail } from '../services/email';
 import { recalcularYGuardar } from '../services/recalc';
 import { computeGroupBonuses } from '../services/group-bonuses';
+import { fetchBesoccerMatch } from '../services/besoccer/client';
+import { parseScore, parseEvents, parseLineup } from '../services/besoccer/mapper';
 
 const router = Router();
 router.use(requireAdmin);
@@ -91,6 +93,35 @@ router.post('/group-bonuses', async (req, res, next) => {
     const preview = await computeGroupBonuses(apply);
     if (preview.applied) await recalcularYGuardar();
     res.json(preview);
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/admin/besoccer/preview — DRY-RUN de SOLO LECTURA del scraper de BeSoccer
+ * para fase KO: descarga la página de un partido (por URL) y devuelve lo que parsea
+ * (marcador, eventos, alineación). NO escribe nada ni afecta a la clasificación;
+ * sirve para validar el parser contra partidos reales antes de que dirija la
+ * puntuación. Body: { url: "https://es.besoccer.com/partido/.../<id>" }.
+ */
+router.post('/besoccer/preview', async (req, res, next) => {
+  try {
+    const url = String(req.body?.url ?? '');
+    if (!url) { res.status(400).json({ error: 'Falta la URL del partido de BeSoccer' }); return; }
+    const pages = await fetchBesoccerMatch(url);
+    const evHtml = pages.eventos || pages.main;
+    const score = parseScore(evHtml);
+    const events = parseEvents(evHtml);
+    const lineup = parseLineup(pages.alineaciones || pages.main);
+    res.json({
+      score,
+      counts: {
+        events: events.length,
+        starters: lineup.filter(l => l.isStarter).length,
+        bench: lineup.filter(l => !l.isStarter).length,
+      },
+      events,
+      lineup,
+    });
   } catch (e) { next(e); }
 });
 

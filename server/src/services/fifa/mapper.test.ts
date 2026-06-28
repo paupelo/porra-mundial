@@ -354,6 +354,57 @@ describe('FIFA mapper — aggregateTimeline', () => {
     expect(messi.goals_open_play).toBe(0);
   });
 
+  it('penalti PARADO (datos reales NOR-FRA): Type 6 sin gol + Type 57 del portero rival = +parada al portero, -fallo al lanzador', () => {
+    // Estructura real: Strand Larsen (p1, t1) lanza un penalti en el 50' (Type 6,
+    // Period 5) y NO marca; Maignan (p4, portero de t2) lo ataja (Type 57, mismo
+    // minuto). Hay paradas normales (Type 57) en otros minutos que NO deben contar.
+    const events = [
+      { Type: 18, Period: 5, MatchMinute: "49'", IdPlayer: 'p2', IdTeam: 't2', EventDescription: [{ Description: 'Theo Hernandez comete una falta.' }] },
+      { Type: 6,  Period: 5, MatchMinute: "50'", IdPlayer: 'p1', IdTeam: 't1', IdSubPlayer: 'p4', EventDescription: [{ Description: 'Penal señalado' }] },
+      { Type: 57, Period: 5, MatchMinute: "50'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: 'El arquero de Francia ataja el balón.' }] },
+      // Parada normal en otro minuto: no coincide con ningún penalti → no puntúa.
+      { Type: 57, Period: 5, MatchMinute: "63'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: 'El arquero de Francia ataja el balón.' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p4')!.penalty_saved_play).toBe(1);      // Maignan: +30 en el motor
+    expect(tallies.get('p4')!.penalty_saved_shootout).toBe(0);
+    expect(tallies.get('p1')!.penalty_missed_play).toBe(1);     // Strand Larsen: -20
+    expect(tallies.get('p2')!.penalty_conceded).toBe(1);        // Theo Hernandez: -15
+  });
+
+  it('penalti FALLADO a las nubes (sin parada): solo -fallo al lanzador, sin parada para nadie', () => {
+    // Type 6 sin gol y SIN Type 57 (el balón se fue fuera): nadie suma parada.
+    const events = [
+      { Type: 6, Period: 5, MatchMinute: "50'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: 'Penal señalado' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p1')!.penalty_missed_play).toBe(1);
+    expect(tallies.get('p4')!.penalty_saved_play).toBe(0);
+  });
+
+  it('una parada normal (Type 57) sin penalti en el minuto no suma penalti parado', () => {
+    const events = [
+      { Type: 57, Period: 3, MatchMinute: "30'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: 'El arquero ataja el balón.' }] },
+      { Type: 0,  Period: 3, MatchMinute: "55'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: 'Gol de Messi' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p4')?.penalty_saved_play ?? 0).toBe(0);
+  });
+
+  it('penalti CONVERTIDO con el portero involucrado no cuenta parada (el lanzador marcó)', () => {
+    // Type 6 + gol en el mismo minuto: convertido. Aunque hubiera un Type 57 cerca,
+    // al haber gol no es ni fallo ni parada.
+    const events = [
+      { Type: 6, Period: 5, MatchMinute: "50'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: 'Penal señalado' }] },
+      { Type: 0, Period: 5, MatchMinute: "50'", IdPlayer: 'p1', IdTeam: 't1', EventDescription: [{ Description: '¡Gol de penalti!' }] },
+      { Type: 57, Period: 5, MatchMinute: "50'", IdPlayer: 'p4', IdTeam: 't2', EventDescription: [{ Description: 'El arquero ataja el balón.' }] },
+    ];
+    const { tallies } = aggregateTimeline(events, lineup, 90);
+    expect(tallies.get('p1')!.goals_penalty_play).toBe(1);
+    expect(tallies.get('p1')!.penalty_missed_play).toBe(0);
+    expect(tallies.get('p4')!.penalty_saved_play).toBe(0);
+  });
+
   it('deduce el penalti cometido de la falta previa del equipo defensor', () => {
     // Caso real: Modrić (Croacia) comete falta en el 9' y Kane (Inglaterra)
     // convierte el penalti en el 12'. La penalización es para Modrić, no para

@@ -44,8 +44,11 @@ const KNOCKOUT_PHASES = ['dieciseisavos', 'octavos', 'cuartos', 'semifinales', '
  *                  fallado (antes mal clasificado como gol).
  *   v2 (jun-2026): penalti fallado real = Type 6 sin gol del lanzador (Messi);
  *                  cambios al descanso (MatchMinute vacío) = minuto 45 (Gvardiol).
+ *   v3 (jun-2026): penalti PARADO = Type 57 (parada del portero) en el mismo
+ *                  minuto que un penalti no convertido del rival → +30 al portero
+ *                  (antes el Type 57 se ignoraba; Maignan a Strand Larsen, NOR-FRA).
  */
-const RECONCILE_VERSION = 2;
+const RECONCILE_VERSION = 3;
 
 function envInt(name: string, fallback: number): number {
   const v = parseInt(process.env[name] ?? '', 10);

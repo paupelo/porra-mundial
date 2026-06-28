@@ -352,6 +352,14 @@ export function aggregateTimeline(
   interface Foul { playerId: string; teamId: string | null; minute: number; }
   interface PenaltyKick { teamId: string | null; minute: number; kind: 'goal' | 'missed' | 'saved'; }
   const fouls: Foul[] = [];
+  // Paradas del portero (Type 57, "El arquero de X ataja el balón"). Una parada
+  // normal NO puntúa, pero una que coincide en minuto con un lanzamiento de
+  // penalti del equipo rival es un PENALTI PARADO (+30 al portero). FIFA NO emite
+  // un evento "penalti parado": el lanzamiento llega como Type 6 (sin gol) y la
+  // parada como un Type 57 del portero defensor en el mismo minuto. Verificado con
+  // datos reales del Mundial 2026 (Maignan para a Strand Larsen, Noruega-Francia).
+  interface GkSave { playerId: string; teamId: string | null; minute: number; shootout: boolean; }
+  const gkSaves: GkSave[] = [];
   // Lanzamientos detectados por TEXTO (Type 41/60/0) — fallback sin Type 6.
   const classifiedKicks: PenaltyKick[] = [];
   // Lanzamientos de penalti reales (Type 6): el marcador fiable de "se lanzó un
@@ -380,6 +388,13 @@ export function aggregateTimeline(
     // penalti cometido. También por texto, por si el código cambiara.
     if (playerId && (ev?.Type === 18 || normalize(description).includes('comete una falta') || normalize(description).includes('commits a foul'))) {
       fouls.push({ playerId, teamId, minute: parseMinute(ev?.MatchMinute) ?? 0 });
+    }
+
+    // Paradas del portero (Type 57): se ignoran para puntuar EN GENERAL, pero se
+    // recogen para detectar penaltis PARADOS cruzándolas por minuto con el
+    // lanzamiento (ver más abajo). El texto ("ataja"/"goalkeeper saves") es respaldo.
+    if (playerId && (ev?.Type === 57 || normalize(description).includes('ataja') || normalize(description).includes('goalkeeper saves'))) {
+      gkSaves.push({ playerId, teamId, minute: parseMinute(ev?.MatchMinute) ?? 0, shootout });
     }
 
     if (kind === null) {
@@ -459,6 +474,19 @@ export function aggregateTimeline(
     const goals = playerGoals.get(playerId) ?? [];
     return goals.some(g => g.shootout === shootout && Math.abs(g.minute - minute) <= 1);
   };
+  // Penalti PARADO: un lanzamiento NO convertido cuyo minuto coincide (±1) con la
+  // parada (Type 57) de un portero del equipo DEFENSOR (el que no lanza) suma un
+  // penalti parado al portero. Distingue una parada (+30) de un fallo a las nubes
+  // (sin Type 57 → solo −20 al lanzador, sin premio para el portero).
+  const creditKeeperSaveFor = (att: { teamId: string | null; minute: number; shootout: boolean }): void => {
+    const save = gkSaves.find(s =>
+      s.shootout === att.shootout &&
+      s.teamId != null && s.teamId !== att.teamId &&
+      Math.abs(s.minute - att.minute) <= 1);
+    if (!save) return;
+    const gk = getTally(save.playerId, save.teamId);
+    if (att.shootout) gk.penalty_saved_shootout++; else gk.penalty_saved_play++;
+  };
   const hasType6 = penaltyAttempts.length > 0;
   let penaltyKicks: PenaltyKick[];
 
@@ -468,6 +496,8 @@ export function aggregateTimeline(
       if (scoredAt(att.playerId, att.shootout, att.minute)) continue; // convertido
       const tally = getTally(att.playerId, att.teamId);
       if (att.shootout) tally.penalty_missed_shootout++; else tally.penalty_missed_play++;
+      // Si el portero rival lo paró (Type 57 en el mismo minuto), suma penalti parado.
+      creditKeeperSaveFor(att);
     }
     // Las paradas del portero (Type 60/texto) siguen premiando al portero.
     for (const [pid, fails] of pendingPenaltyFails) {

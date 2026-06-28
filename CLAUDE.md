@@ -489,6 +489,29 @@ Verificado contra el timeline REAL del Mundial 2026 (Argentina 2-0 Austria; Pana
 
 Ambos arreglan datos ya jugados de forma automática vía la revisión post-partido (RECONCILE_VERSION=2).
 
+### Datos reales de FIFA: penalti PARADO = Type 57 cruzado con el lanzamiento (junio 2026)
+
+Verificado contra el timeline REAL del Mundial 2026 (Noruega 1-4 Francia: Maignan para a Strand
+Larsen; Egipto 1-1 Irán: Shoubir para a Taremi):
+
+- **Penalti parado = `Type 57` ("El arquero de X ataja el balón") en el mismo minuto que un penalti
+  no convertido del rival.** FIFA NO emite un evento "penalti parado": el lanzamiento llega como
+  `Type 6` (sin gol del lanzador) y la parada como un `Type 57` del portero DEFENSOR en el mismo
+  minuto. El `Type 57` está en `IGNORED_EVENT_TYPES` (una parada normal no puntúa), así que la parada
+  del penalti se perdía → el portero no sumaba los **+30** (`PLAYER_SCORING.portero.penaltiParado`).
+  Caso Maignan: tenía solo `porJugar 5` + `golEncajado −5` = 0; le faltaba la parada del penalti del 50'.
+- **Solución (`fifa/mapper.ts`):** `aggregateTimeline` recoge los `Type 57` (`gkSaves`) además de las
+  faltas. Al resolver los penaltis (rama `hasType6`), por cada lanzamiento NO convertido cruza su minuto
+  (±1) con un `Type 57` de un portero del equipo **contrario** (el que no lanza): si lo hay, ese portero
+  suma `penalty_saved_play` (+30; en tanda `penalty_saved_shootout`, +15). Distingue una **parada**
+  (+30 al portero **y** −20 al lanzador, son cosas independientes) de un **fallo a las nubes** (sin
+  `Type 57` → solo −20 al lanzador, sin premio para nadie). Las paradas normales (sin penalti en ese
+  minuto) siguen sin puntuar. El penalti fallado del lanzador (−20) y el penalti cometido del defensor
+  (−15) no cambian.
+- Arregla datos ya jugados de forma automática vía la revisión post-partido (**RECONCILE_VERSION=3**):
+  re-deriva todos los partidos finalizados y corrige las DOS paradas detectadas (Maignan y Shoubir) sin
+  intervención del admin. +4 tests en `mapper.test.ts` (174 en total, 0 fallos).
+
 ### Revisión automática post-partido / autocorrección (junio 2026)
 
 **Problema:** al finalizar un partido sus eventos se **auto-confirman**, y el scraper tenía la regla

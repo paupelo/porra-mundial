@@ -62,8 +62,13 @@ function useBesoccer(m: MatchRecord): boolean {
  *   v3 (jun-2026): penalti PARADO = Type 57 (parada del portero) en el mismo
  *                  minuto que un penalti no convertido del rival → +30 al portero
  *                  (antes el Type 57 se ignoraba; Maignan a Strand Larsen, NOR-FRA).
+ *   v4 (jun-2026): la TANDA de penaltis ya NO puntúa a JUGADORES (solo a
+ *                  selecciones). Fuerza el recálculo retroactivo de los partidos
+ *                  resueltos en tanda (Paraguay-Alemania, Países Bajos-Marruecos):
+ *                  se anulan los puntos de jugador por penalti parado/gol/fallado
+ *                  en tanda. Las selecciones (empate + Ganar Penaltis) no cambian.
  */
-const RECONCILE_VERSION = 3;
+const RECONCILE_VERSION = 4;
 
 function envInt(name: string, fallback: number): number {
   const v = parseInt(process.env[name] ?? '', 10);

@@ -48,7 +48,10 @@ export const PLAYER_SCORING: Record<Position, PlayerScoringRow> = {
 export const PENALTIES = {
   penaltiCometido:         -15,
   penaltiAlladoPlay:       -20,  // penalti fallado en juego
-  penaltiAlladoShootout:   -10,  // penalti fallado en tanda
+  // NOTA: la TANDA de penaltis ya NO puntúa a jugadores (solo a selecciones).
+  // Esta constante se conserva por documentación/histórico, pero el motor de
+  // jugadores (jugadores.ts) ignora todos los eventos de tanda por diseño.
+  penaltiAlladoShootout:   -10,  // penalti fallado en tanda (NO se aplica a jugadores)
   tarjetaRoja:             -20,
   golEnPropiaMeta:         -15,
   pasaRondaJugador:         15,

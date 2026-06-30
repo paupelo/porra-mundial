@@ -113,12 +113,31 @@ export function participoEnElPartido(e: MatchPlayerEventRecord): boolean {
 
 function calcMatchPoints(
   player: PlayerRecord,
-  event: MatchPlayerEventRecord,
+  rawEvent: MatchPlayerEventRecord,
   match: MatchRecord,
   captainMult: number,
   suplenteMult: number,
   isImprovisedGoalkeeper: boolean,
 ): ScoreLineItem[] {
+  // ── GUARDA DE DISEÑO: la TANDA de penaltis NO puntúa a los JUGADORES ────────
+  // Por norma de la porra, los penaltis de la TANDA solo puntúan a las
+  // SELECCIONES (empate en el marcador + bonus "Ganar Penaltis", que se derivan
+  // de `match.decided_by_penalties`/`penalty_winner_id` en selecciones.ts) y
+  // NUNCA a los jugadores. Esta exclusión es intencional y por diseño.
+  //
+  // El dato de la tanda SÍ se conserva en la BD (columnas *_shootout, que el
+  // scraper/admin siguen rellenando): es el "flag" que segrega la tanda del juego.
+  // Aquí lo neutralizamos ANTES de calcular cualquier punto de jugador, de modo
+  // que ninguna rama (penalti parado, gol o penalti fallado en tanda) genere
+  // puntos. Defensa en profundidad: aunque alguien reañadiera una rama de tanda
+  // más abajo, estos contadores ya valen 0 y no computaría nada.
+  const event: MatchPlayerEventRecord = {
+    ...rawEvent,
+    goals_penalty_shootout: 0,
+    penalty_saved_shootout: 0,
+    penalty_missed_shootout: 0,
+  };
+
   const items: ScoreLineItem[] = [];
   const pos = isImprovisedGoalkeeper ? player.position : player.position;
   const effectivePos: Position = isImprovisedGoalkeeper ? 'portero' : player.position;
@@ -131,8 +150,11 @@ function calcMatchPoints(
   }
 
   // Por jugar: cualquier jugador que pise el campo (sin umbral de minutos;
-  // incluye suplentes que entran en el descuento o en la prórroga).
-  if (participoEnElPartido(event)) {
+  // incluye suplentes que entran en el descuento o en la prórroga). Se evalúa
+  // sobre el evento ORIGINAL para no perder la participación de quien jugó la
+  // prórroga aunque su única señal restante fuese la tanda (en la práctica
+  // siempre tiene minutos): la tanda no puntúa, pero sí confirma que jugó.
+  if (participoEnElPartido(rawEvent)) {
     const scoring = PLAYER_SCORING[player.position];
     items.push(pItem('porJugar', match.phase, scoring.porJugar, mult, captainMult, suplenteMult, mid));
 
@@ -182,14 +204,14 @@ function calcMatchPoints(
   if (ppPts !== null && event.penalty_saved_play > 0) {
     items.push(pItem('penaltiParado', match.phase, ppPts * event.penalty_saved_play, mult, captainMult, suplenteMult, mid));
   }
-  if ((ppPts !== null || isImprovisedGoalkeeper) && event.penalty_saved_shootout > 0) {
-    const ppShoot = (isImprovisedGoalkeeper ? PLAYER_SCORING.portero.penaltiParado! : ppPts!) / 2;
-    items.push(pItem('penaltiParadoTanda', match.phase, ppShoot * event.penalty_saved_shootout, mult, captainMult, suplenteMult, mid));
-  }
+  // Penalti parado en TANDA: no puntúa a jugadores (ver guarda de diseño arriba).
 
   // ── Goles ─────────────────────────────────────────────────────────────────
+  // Solo goles en tiempo reglamentario/prórroga. Los goles de la TANDA no
+  // puntúan a jugadores (ver guarda de diseño arriba) ni cuentan para doblete/
+  // hat-trick.
   const regularGoals = event.goals_open_play + event.goals_penalty_play;
-  if (regularGoals > 0 || event.goals_penalty_shootout > 0) {
+  if (regularGoals > 0) {
     // Puntos por goles según posición natural
     let goalPts = 0;
     const naturalPos = player.position;
@@ -202,12 +224,6 @@ function calcMatchPoints(
     }
     if (goalPts !== 0) {
       items.push(pItem('goles', match.phase, goalPts, mult, captainMult, suplenteMult, mid));
-    }
-    // Goles en tanda: mitad del valor unitario, NO cuentan para doblete/hat-trick
-    if (event.goals_penalty_shootout > 0) {
-      const goalUnitValue = PLAYER_SCORING[naturalPos].gol;
-      const shootoutGoalPts = (goalUnitValue / 2) * event.goals_penalty_shootout;
-      items.push(pItem('golesTanda', match.phase, shootoutGoalPts, mult, captainMult, suplenteMult, mid));
     }
   }
 
@@ -231,9 +247,7 @@ function calcMatchPoints(
   if (event.penalty_missed_play > 0) {
     items.push(pItem('penaltiFalladoJuego', match.phase, PENALTIES.penaltiAlladoPlay * event.penalty_missed_play, 1, captainMult, suplenteMult, mid));
   }
-  if (event.penalty_missed_shootout > 0) {
-    items.push(pItem('penaltiFalladoTanda', match.phase, PENALTIES.penaltiAlladoShootout * event.penalty_missed_shootout, 1, captainMult, suplenteMult, mid));
-  }
+  // Penalti fallado en TANDA: no puntúa a jugadores (ver guarda de diseño arriba).
   if (event.red_card) {
     items.push(pItem('tarjetaRoja', match.phase, PENALTIES.tarjetaRoja, 1, captainMult, suplenteMult, mid));
   }

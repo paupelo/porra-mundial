@@ -556,11 +556,13 @@ describe('Penalti parado', () => {
     expect(pp!.basePoints).toBe(30);
   });
 
-  test('Portero para 1 penalti en tanda → +15', () => {
+  // Regla: la TANDA de penaltis NO puntúa a jugadores (solo a selecciones).
+  test('Portero para 1 penalti en tanda → 0 a jugador (no añade nada)', () => {
     const p = makePlayer('gk', 'esp', 'portero');
+    const base = singlePlayerScore(p, {});
     const r = singlePlayerScore(p, { penalty_saved_shootout: 1 });
-    const pp = r.items.find(i => i.concept === 'penaltiParadoTanda');
-    expect(pp!.basePoints).toBe(15);
+    expect(r.items.find(i => i.concept === 'penaltiParadoTanda')).toBeUndefined();
+    expect(r.totalPoints).toBe(base.totalPoints);
   });
 
   test('Portero para 2 penaltis en juego → +60', () => {
@@ -579,11 +581,13 @@ describe('Penalti fallado', () => {
     expect(pf!.basePoints).toBe(-20);
   });
 
-  test('Delantero falla penalti en tanda → -10', () => {
+  // Regla: la TANDA de penaltis NO puntúa a jugadores (solo a selecciones).
+  test('Delantero falla penalti en tanda → 0 a jugador (no descuenta nada)', () => {
     const p = makePlayer('fwd', 'esp', 'delantero');
+    const base = singlePlayerScore(p, {});
     const r = singlePlayerScore(p, { penalty_missed_shootout: 1 });
-    const pf = r.items.find(i => i.concept === 'penaltiFalladoTanda');
-    expect(pf!.basePoints).toBe(-10);
+    expect(r.items.find(i => i.concept === 'penaltiFalladoTanda')).toBeUndefined();
+    expect(r.totalPoints).toBe(base.totalPoints);
   });
 
   // BUG 2: el -20 del penalti fallado en juego se descuenta SIEMPRE del total
@@ -706,25 +710,34 @@ describe('Goles por posición', () => {
   });
 });
 
-describe('Goles en tanda (mitad, no cuentan para doblete/hat-trick)', () => {
-  test('Delantero 1 gol en tanda → 20/2 = 10', () => {
+describe('Goles en tanda (NO puntúan a jugadores; solo a selecciones)', () => {
+  // Regla: los goles de la TANDA de penaltis no generan puntos de jugador ni
+  // cuentan para doblete/hat-trick. El dato se conserva en BD pero el motor de
+  // jugadores lo ignora (ver guarda de diseño en jugadores.ts).
+  test('Delantero 1 gol en tanda → 0 a jugador (sin item golesTanda)', () => {
     const p = makePlayer('fwd', 'esp', 'delantero');
+    const base = singlePlayerScore(p, {});
     const r = singlePlayerScore(p, { goals_penalty_shootout: 1 });
-    expect(r.items.find(i => i.concept === 'golesTanda')!.basePoints).toBe(10);
-  });
-
-  test('Portero 1 gol en tanda → 50/2 = 25', () => {
-    const p = makePlayer('gk', 'esp', 'portero');
-    const r = singlePlayerScore(p, { goals_penalty_shootout: 1 });
-    expect(r.items.find(i => i.concept === 'golesTanda')!.basePoints).toBe(25);
-  });
-
-  test('Delantero 2 goles en tanda NO activa doblete', () => {
-    const p = makePlayer('fwd', 'esp', 'delantero');
-    const r = singlePlayerScore(p, { goals_penalty_shootout: 2 });
-    // 2 goles en tanda = 10+10 = 20, no 50 del doblete
-    expect(r.items.find(i => i.concept === 'golesTanda')!.basePoints).toBe(20);
+    expect(r.items.find(i => i.concept === 'golesTanda')).toBeUndefined();
     expect(r.items.find(i => i.concept === 'goles')).toBeUndefined();
+    expect(r.totalPoints).toBe(base.totalPoints);
+  });
+
+  test('Portero 1 gol en tanda → 0 a jugador (sin item golesTanda)', () => {
+    const p = makePlayer('gk', 'esp', 'portero');
+    const base = singlePlayerScore(p, {});
+    const r = singlePlayerScore(p, { goals_penalty_shootout: 1 });
+    expect(r.items.find(i => i.concept === 'golesTanda')).toBeUndefined();
+    expect(r.totalPoints).toBe(base.totalPoints);
+  });
+
+  test('Delantero 2 goles en tanda → 0 a jugador (ni golesTanda ni doblete)', () => {
+    const p = makePlayer('fwd', 'esp', 'delantero');
+    const base = singlePlayerScore(p, {});
+    const r = singlePlayerScore(p, { goals_penalty_shootout: 2 });
+    expect(r.items.find(i => i.concept === 'golesTanda')).toBeUndefined();
+    expect(r.items.find(i => i.concept === 'goles')).toBeUndefined();
+    expect(r.totalPoints).toBe(base.totalPoints);
   });
 });
 

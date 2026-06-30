@@ -512,6 +512,40 @@ Larsen; Egipto 1-1 Irán: Shoubir para a Taremi):
   re-deriva todos los partidos finalizados y corrige las DOS paradas detectadas (Maignan y Shoubir) sin
   intervención del admin. +4 tests en `mapper.test.ts` (174 en total, 0 fallos).
 
+### La TANDA de penaltis NO puntúa a JUGADORES (solo a selecciones) (junio 2026)
+
+Cambio de regla de la porra: **los penaltis de la TANDA dejan de puntuar a los jugadores**. Antes el
+motor de jugadores los computaba (penalti parado en tanda +15, gol de penalti en tanda = mitad del
+valor, penalti fallado en tanda −10). Ahora **valen 0 para los jugadores**. Las **selecciones siguen
+puntuando la tanda exactamente igual** (empate en el marcador + bonus "Ganar Penaltis"), porque eso se
+deriva de `match.decided_by_penalties`/`penalty_winner_id` en `selecciones.ts` (NO de eventos de
+jugador) — esa lógica **no se ha tocado**.
+
+- **Dónde:** `scoring/jugadores.ts`, `calcMatchPoints`. Una **guarda de diseño** al principio crea una
+  copia saneada del evento con `goals_penalty_shootout`, `penalty_saved_shootout` y
+  `penalty_missed_shootout` puestos a **0** antes de calcular ningún punto; se eliminaron las tres ramas
+  `penaltiParadoTanda` / `golesTanda` / `penaltiFalladoTanda`. Es **defensa en profundidad**: aunque
+  alguien reañadiera una rama de tanda, los contadores ya valen 0. "Por jugar" (5 pts) se sigue
+  evaluando sobre el evento ORIGINAL (`participoEnElPartido(rawEvent)`), así un jugador que disputó la
+  prórroga/tanda no pierde su participación; solo deja de sumar por los penaltis de la tanda.
+- **El dato se conserva:** los scrapers (FIFA `mapper.ts`/`sync.ts`, BeSoccer) y la entrada manual del
+  admin siguen rellenando las columnas `*_shootout` de `match_player_events`. Esas columnas SON el
+  "flag" que segrega la tanda del juego reglamentario; el motor de jugadores simplemente las ignora.
+  Nada se borra de la BD.
+- **`calcPlayerScore` es el ÚNICO cómputo de puntos de jugador** (lo usan `engine.ts`, el overlay en
+  vivo `live.ts` vía el motor, y la proyección `elegidos-scores.ts`): todos quedan cubiertos por la
+  guarda. `selecciones.ts` no usa los campos `*_shootout`.
+- **Partidos recalculados (dieciseisavos, resueltos en tanda):** **Alemania 1-1 Paraguay**
+  (`pen_winner=paraguay`) y **Países Bajos 1-1 Marruecos** (`pen_winner=marruecos`). Eran los **únicos
+  dos** partidos con `decided_by_penalties` en la BD. El recálculo retroactivo es **automático y sin
+  admin** vía **RECONCILE_VERSION=4** (el scheduler re-deriva y llama a `recalcularYGuardar`). En
+  Alemania-Paraguay desaparecen 4 ítems `golesTanda` de jugador (15/15/12,5/15); las selecciones de
+  ambos partidos no varían (451 pts y 7 pts, respectivamente).
+- **Tests:** los tests de tanda de jugador en `engine.test.ts` se reescribieron para afirmar que la
+  tanda NO añade puntos al jugador (penalti parado, gol y penalti fallado en tanda → 0). Los tests de
+  tanda de **selección** (Ganar Penaltis) y de portería a cero con tanda siguen iguales. 188 tests, 0
+  fallos.
+
 ### Revisión automática post-partido / autocorrección (junio 2026)
 
 **Problema:** al finalizar un partido sus eventos se **auto-confirman**, y el scraper tenía la regla
@@ -640,10 +674,12 @@ Los valores originales del prompt eran ×1/×2/×3/×4; el usuario los cambió e
 ### Bonus planos (sin multiplicador)
 `ganarMundial` (50/100/200/400 según categoría) y `mvpMundial` (+50) **nunca se multiplican** por fase, aunque otros puntos del mismo partido sí. Se implementa pasando `phaseMultiplier: 1` explícitamente en el ítem de desglose.
 
-### Penalti fallado: dos valores distintos
+### Penalti fallado del JUGADOR
 - En juego: **−20** (`PENALTIES.penaltiAlladoPlay`)
-- En tanda: **−10** (`PENALTIES.penaltiAlladoShootout`)
-Ambos en `scoring-tables.ts`. El criterio está comentado allí para que sea fácil de cambiar si se decide unificar.
+- En **tanda: 0** — desde jun-2026 la tanda **NO puntúa a jugadores** (ver "La TANDA de penaltis NO
+  puntúa a JUGADORES" más arriba). La constante `penaltiAlladoShootout` (−10) sigue en
+  `scoring-tables.ts` por histórico, pero el motor de jugadores la ignora. Las **selecciones** sí
+  puntúan la tanda (Ganar Penaltis), eso no cambia.
 
 ### Penalizaciones no se multiplican por fase
 Tarjeta roja, penalti cometido, penalti fallado, gol en propia: se aplican con `phaseMultiplier: 1` siempre. Son sanciones deportivas, no méritos. Esto está documentado con un comentario en `jugadores.ts`.

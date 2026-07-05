@@ -92,10 +92,10 @@ describe('FIFA mapper — mapCalendarMatch', () => {
     expect(d.venue).toBe('Estadio Azteca');
   });
 
-  it('detecta tanda de penaltis y su ganador', () => {
+  it('detecta tanda de penaltis y su ganador (ResultType=2 + marcador de tanda, datos reales)', () => {
     const d = mapCalendarMatch({
       ...base,
-      ResultType: 3,
+      ResultType: 2,
       Home: { ...base.Home, Score: 1 },
       Away: { ...base.Away, Score: 1 },
       HomeTeamPenaltyScore: 3,
@@ -103,6 +103,21 @@ describe('FIFA mapper — mapCalendarMatch', () => {
     })!;
     expect(d.decidedByPenalties).toBe(true);
     expect(d.penaltyWinnerCode).toBe('RSA');
+  });
+
+  it('NO marca penaltis en un partido resuelto en la prórroga (ResultType=3 sin tanda, datos reales)', () => {
+    // Argentina 3-2 Cabo Verde (16avos, Mundial 2026): ResultType=3 = prórroga,
+    // sin PenaltyScore. El bug marcaba decided_by_penalties=1 con ganador null.
+    const d = mapCalendarMatch({
+      ...base,
+      ResultType: 3,
+      Home: { ...base.Home, Score: 3 },
+      Away: { ...base.Away, Score: 2 },
+      HomeTeamPenaltyScore: null,
+      AwayTeamPenaltyScore: null,
+    })!;
+    expect(d.decidedByPenalties).toBe(false);
+    expect(d.penaltyWinnerCode).toBeNull();
   });
 
   it('devuelve null sin IdMatch y tolera marcadores ausentes', () => {

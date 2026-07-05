@@ -112,8 +112,14 @@ export function mapCalendarMatch(raw: unknown): FifaMatchDraft | null {
   const awayScore = intOrNull(away?.Score) ?? intOrNull(m.AwayTeamScore);
   const homePens = intOrNull(m.HomeTeamPenaltyScore) ?? intOrNull(home?.PenaltyScore);
   const awayPens = intOrNull(m.AwayTeamPenaltyScore) ?? intOrNull(away?.PenaltyScore);
-  // ResultType 3 = decidido en tanda de penaltis (2 = prórroga, 1 = normal)
-  const decidedByPenalties = m.ResultType === 3 || (homePens !== null && awayPens !== null && homePens + awayPens > 0);
+  // Tanda de penaltis: SOLO si FIFA trae el marcador de la tanda. Verificado con
+  // datos reales del Mundial 2026: ResultType es 1=reglamentario, 2=penaltis,
+  // 3=prórroga (¡no 3=penaltis!). Las tandas reales (Alemania-Paraguay, pens 3-4)
+  // llegan con ResultType=2 Y PenaltyScore relleno; un partido resuelto en la
+  // prórroga (Argentina 3-2 Cabo Verde, 16avos) llega con ResultType=3 y
+  // PenaltyScore null. Fiarse de ResultType=3 marcaba como "penaltis" partidos de
+  // prórroga → puntuaban como empate y sin ganador no se derivaba el pase de ronda.
+  const decidedByPenalties = homePens !== null && awayPens !== null && homePens + awayPens > 0;
 
   let penaltyWinnerCode: string | null = null;
   if (decidedByPenalties && homePens !== null && awayPens !== null) {

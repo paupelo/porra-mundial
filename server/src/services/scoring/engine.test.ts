@@ -194,6 +194,24 @@ describe('Resultados de partido por categoría', () => {
 });
 
 describe('Penaltis como empate en selecciones', () => {
+  test('flag de penaltis con marcador DESIGUAL → victoria/derrota, no empate', () => {
+    // Caso real: Argentina 3-2 Cabo Verde (16avos) llegó de FIFA con
+    // decided_by_penalties=1 y penalty_winner_id=null pese a resolverse en la
+    // prórroga (ResultType=3 = prórroga, no tanda). Una tanda solo existe tras
+    // empate: con marcador desigual manda el marcador.
+    const corrupt: MatchRecord = {
+      ...makeMatch('m1', 'esp', 'bra', 'dieciseisavos', 3, 2),
+      decided_by_penalties: 1,
+      penalty_winner_id: null,
+    };
+    const win = calcTeamScore(makeTeam('esp', 'favoritos'), false, [corrupt], []);
+    expect(win.items.map(i => i.concept)).toEqual(['victoria']);
+    expect(win.totalPoints).toBe(10);
+    const lose = calcTeamScore(makeTeam('bra', 'favoritos'), false, [corrupt], []);
+    expect(lose.items.map(i => i.concept)).toEqual(['derrota']);
+    expect(lose.totalPoints).toBe(-20);
+  });
+
   test('Favorito gana tanda en grupos → empate(1) + ganarPenaltis(5) = 6', () => {
     const t = makeTeam('esp', 'favoritos');
     const m = makeMatch('m1', 'esp', 'bra', 'grupos', 1, 1, 'esp');

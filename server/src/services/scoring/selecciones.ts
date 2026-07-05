@@ -47,7 +47,9 @@ export function calcTeamScore(
     const oppScore  = isHome ? match.away_score! : match.home_score!;
     const mult = getPhaseMultiplier(match.phase);
 
-    if (match.decided_by_penalties) {
+    // La rama de penaltis exige marcador empatado: una tanda solo existe tras
+    // empate, así que un flag corrupto jamás convierte una victoria en empate.
+    if (match.decided_by_penalties && teamScore === oppScore) {
       // Penaltis → ambos equipos suman empate; el ganador suma además ganarPenaltis
       items.push(item('empate', match.phase, scoring.empate, mult, wMult, match.id));
       if (match.penalty_winner_id === team.id) {

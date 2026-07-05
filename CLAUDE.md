@@ -546,6 +546,41 @@ jugador) — esa lógica **no se ha tocado**.
   tanda de **selección** (Ganar Penaltis) y de portería a cero con tanda siguen iguales. 188 tests, 0
   fallos.
 
+### Datos reales de FIFA: ResultType 3 = PRÓRROGA, no penaltis (julio 2026)
+
+**Síntoma:** Argentina se clasificó a octavos (3-2 a Cabo Verde en 16avos, gol en la prórroga) y no
+se computó ni el bonus "Pasar Ronda" ni la victoria del partido (puntuó como empate). Mismo caso en
+Bélgica 3-2 Senegal. Eran los ÚNICOS dos resultados de fase que faltaban en toda la BD (auditados
+grupos completos, los 16 partidos de 16avos y los 2 octavos ya jugados).
+
+**Causa raíz (verificada contra el calendario real de api.fifa.com):** el mapper asumía
+`ResultType 3 = penaltis, 2 = prórroga`, y es **al revés**: `1 = reglamentario, 2 = penaltis,
+3 = prórroga`. Las tandas reales (Alemania-Paraguay pens 3-4, Países Bajos-Marruecos 2-3,
+Australia-Egipto 2-4) llegan con `ResultType=2` **y** `HomeTeamPenaltyScore/AwayTeamPenaltyScore`
+rellenos — se puntuaron bien gracias al fallback por marcador de tanda. Pero un partido resuelto en
+la prórroga llega con `ResultType=3` y tanda null → el mapper escribía `decided_by_penalties=1` con
+`penalty_winner_id=null`. Cascada: (a) `selecciones.ts` puntuaba el partido como **empate** en vez de
+victoria/derrota; (b) `deriveKnockoutPhaseResults` entraba por la rama de penaltis, obtenía ganador
+null y **no escribía `advanced`/`eliminated`** → sin pasaRonda (equipo y jugadores), sin penalización
+`noOctavos` al perdedor y sin promoción de suplentes.
+
+**Corrección (tres capas, jul-2026):**
+- `fifa/mapper.ts`: `decidedByPenalties` se deriva SOLO del marcador de la tanda (presente y >0);
+  `ResultType` deja de usarse (no es fiable como señal de penaltis).
+- `scheduler.ts` — `deriveKnockoutPhaseResults`: con marcador desigual gana quien más goles tiene,
+  diga lo que diga el flag (una tanda solo existe tras empate); la rama `penalty_winner_id` queda
+  solo para empates. Además, **saneado idempotente en cada tick**: un partido finalizado con
+  `decided_by_penalties=1` y marcador desigual se corrige en BD (`flag=0, winner=null`) y dispara el
+  recálculo — así los dos partidos corruptos se autocorrigieron sin admin tras el deploy.
+- `scoring/selecciones.ts` (defensa en profundidad): la rama de penaltis exige `teamScore === oppScore`;
+  un flag corrupto jamás vuelve a convertir una victoria en empate.
+
+**Resultado:** Argentina y Bélgica reciben victoria + `advanced`@16avos (pasaRonda 10/20/40/80 ×1
+según categoría, ×2 si Ganador; +15 ×1 a todos sus jugadores con rol capitán ×2 / suplente ×0.5 o
+×1 si promovido); Cabo Verde y Senegal reciben derrota + `eliminated`@16avos (penalización
+`noOctavos` y promoción de suplentes de sus líneas). +2 tests (mapper: prórroga real RT=3; engine:
+flag corrupto con marcador desigual). 190 tests, 0 fallos.
+
 ### Revisión automática post-partido / autocorrección (junio 2026)
 
 **Problema:** al finalizar un partido sus eventos se **auto-confirman**, y el scraper tenía la regla

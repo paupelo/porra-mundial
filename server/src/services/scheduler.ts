@@ -130,13 +130,16 @@ async function deriveKnockoutPhaseResults(match: MatchRecord): Promise<boolean> 
   if (!KNOCKOUT_PHASES.includes(match.phase) || match.status !== 'finished') return false;
   if (match.home_score === null || match.away_score === null) return false;
 
+  // Con marcador desigual gana quien más goles tiene, diga lo que diga el flag de
+  // penaltis: una tanda solo existe tras empate (un flag corrupto con marcador 3-2
+  // dejaba winnerId=null y bloqueaba el pase de ronda — caso Argentina-Cabo Verde).
   let winnerId: string | null = null;
-  if (match.decided_by_penalties) {
-    winnerId = match.penalty_winner_id;
-  } else if (match.home_score > match.away_score) {
+  if (match.home_score > match.away_score) {
     winnerId = match.home_team_id;
   } else if (match.away_score > match.home_score) {
     winnerId = match.away_team_id;
+  } else if (match.decided_by_penalties) {
+    winnerId = match.penalty_winner_id;
   }
   if (!winnerId) return false;
   const loserId = winnerId === match.home_team_id ? match.away_team_id : match.home_team_id;
@@ -245,6 +248,18 @@ async function tick(): Promise<void> {
     // Partidos finalizados sin scrape final (sin eventos, o solo con
     // provisionales del modo en vivo) → descargar timeline definitivo
     for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'finished')) {
+      // Saneado de datos: una tanda de penaltis solo existe tras empate. Un flag de
+      // penaltis con marcador desigual es un dato corrupto (ResultType=3 de FIFA es
+      // prórroga, no tanda) que hacía puntuar el partido como empate. Idempotente:
+      // tras la primera corrección la condición deja de cumplirse.
+      if (m.decided_by_penalties && m.home_score !== null && m.away_score !== null
+          && m.home_score !== m.away_score) {
+        await MatchesRepo.update(m.id, { decided_by_penalties: 0, penalty_winner_id: null });
+        m.decided_by_penalties = 0;
+        m.penalty_winner_id = null;
+        log(`saneado ${m.id}: flag de penaltis incoherente con marcador ${m.home_score}-${m.away_score} → eliminado`);
+        didWork = true;
+      }
       const counts = await EventsRepo.countByMatch(m.id);
       // Backfill de minutos de gol/intervalo en partidos cerrados antes de la feature.
       const needsIntervalBackfill = m.home_goal_minutes == null && m.away_goal_minutes == null

@@ -39,7 +39,7 @@ function selInfo(id) {
 }
 
 /** Círculo de jugador o placeholder vacío */
-function SlotJugador({ slot, jugador, onRemove }) {
+function SlotJugador({ slot, jugador, onRemove, eliminado }) {
   const info      = jugador ? selInfo(jugador.seleccionId) : null;
   const cat       = jugador ? getCategoria(jugador.seleccionId) : null;
   const color     = cat ? getCatColor(cat) : null;
@@ -78,6 +78,8 @@ function SlotJugador({ slot, jugador, onRemove }) {
       style={clickable ? { cursor: 'pointer' } : {}}
       role={clickable ? 'button' : undefined}
       aria-label={clickable ? `Quitar ${jugador.nombre}` : undefined}
+      // Ficha sombreada si su selección está eliminada del torneo
+      opacity={eliminado ? 0.35 : undefined}
     >
       {/* Sombra */}
       <circle cx={slot.cx + 1} cy={slot.cy + 2} r="21" fill="rgba(0,0,0,0.28)" />
@@ -126,8 +128,9 @@ function SlotJugador({ slot, jugador, onRemove }) {
  * Props:
  *   titular  — [{id, nombre, posicion, seleccionId, esCopitan}]
  *   suplentes — mismo formato
+ *   eliminados — Set opcional de seleccionId eliminadas del torneo (sombrea sus fichas)
  */
-function CampoFormacion({ titular, suplentes, onRemoveTitular, onRemoveSuplente }) {
+function CampoFormacion({ titular, suplentes, onRemoveTitular, onRemoveSuplente, eliminados }) {
   const byPos    = pos => titular.filter(j => j.posicion === pos);
   const supByPos = pos => suplentes.find(j => j.posicion === pos) ?? null;
 
@@ -255,14 +258,18 @@ function CampoFormacion({ titular, suplentes, onRemoveTitular, onRemoveSuplente 
         />
 
         {/* ─── Fichas de jugadores ─── */}
-        {SLOTS.map(slot => (
-          <SlotJugador
-            key={`${slot.pos}-${slot.idx}`}
-            slot={slot}
-            jugador={byPos(slot.pos)[slot.idx] ?? null}
-            onRemove={onRemoveTitular}
-          />
-        ))}
+        {SLOTS.map(slot => {
+          const jugador = byPos(slot.pos)[slot.idx] ?? null;
+          return (
+            <SlotJugador
+              key={`${slot.pos}-${slot.idx}`}
+              slot={slot}
+              jugador={jugador}
+              onRemove={onRemoveTitular}
+              eliminado={!!(jugador && eliminados?.has(jugador.seleccionId))}
+            />
+          );
+        })}
       </svg>
 
       {/* ─── Fila de suplentes ─── */}
@@ -277,12 +284,17 @@ function CampoFormacion({ titular, suplentes, onRemoveTitular, onRemoveSuplente 
             const apellido = jug
               ? jug.nombre.split(' ').pop().slice(0, 9).toUpperCase()
               : null;
+            const elim = !!(jug && eliminados?.has(jug.seleccionId));
 
             return (
               <div
                 key={pos}
                 className={`cf-sup-chip ${jug ? 'cf-sup-chip--lleno' : 'cf-sup-chip--vacio'}`}
-                style={color ? { '--cf-color': color } : {}}
+                style={{
+                  ...(color ? { '--cf-color': color } : {}),
+                  // Chip sombreado si su selección está eliminada del torneo
+                  ...(elim ? { opacity: 0.45, filter: 'grayscale(0.6)' } : {}),
+                }}
                 onClick={jug && onRemoveSuplente ? () => onRemoveSuplente(jug) : undefined}
                 title={jug && onRemoveSuplente ? `Quitar ${jug.nombre}` : undefined}
               >

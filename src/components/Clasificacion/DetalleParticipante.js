@@ -333,11 +333,14 @@ export default function DetalleParticipante({ porraId, onBack }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {items.map(s => {
                       const info = SELECCIONES.find(sel => sel.id === s.team_id);
+                      const elim = isElim(s.team_id);
                       return (
                         <span key={s.team_id} style={{
                           background: '#f8fafc', border: `1.5px solid ${CAT_COLORS[cat]}33`,
                           borderRadius: 8, padding: '4px 12px',
                           fontSize: '0.85rem', fontWeight: 600, color: '#1e293b',
+                          // Sombreado de eliminados: de un vistazo se ve qué queda en activo
+                          ...(elim ? { opacity: 0.45, filter: 'grayscale(0.6)' } : {}),
                         }}>
                           {info?.bandera} {s.team_name}
                           {s.is_winner ? ' ⭐' : ''}
@@ -355,7 +358,7 @@ export default function DetalleParticipante({ porraId, onBack }) {
             <div className="detalle-section">
               <h3>Alineación</h3>
               <div style={{ maxWidth: 380, margin: '0 auto' }}>
-                <CampoFormacion titular={campoProps.titular} suplentes={campoProps.suplentes} />
+                <CampoFormacion titular={campoProps.titular} suplentes={campoProps.suplentes} eliminados={eliminatedTeams} />
               </div>
             </div>
           )}

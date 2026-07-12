@@ -1,6 +1,15 @@
 import { Phase } from '../../types';
 
-/** Multiplicador de fase para puntos de partido y jugadores. */
+/**
+ * Multiplicador de fase para puntos de partido y jugadores.
+ *
+ * Tabla oficial: grupos/dieciseisavos/octavos ×1 · cuartos ×1.5 · semis ×2 · final ×3.
+ *
+ * Criterio de redondeo: NO se redondea nunca. Los puntos se calculan y persisten
+ * con su valor exacto (columnas DOUBLE PRECISION). Con ×1.5 y el ×0.5 de suplente
+ * la granularidad mínima es 0.25 puntos, sin errores de coma flotante acumulables
+ * en la práctica; el frontend muestra el valor tal cual (7.5, 22.5, 2925.75…).
+ */
 export function getPhaseMultiplier(phase: Phase): number {
   switch (phase) {
     case 'grupos':

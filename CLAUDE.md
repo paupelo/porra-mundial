@@ -581,6 +581,41 @@ según categoría, ×2 si Ganador; +15 ×1 a todos sus jugadores con rol capitá
 `noOctavos` y promoción de suplentes de sus líneas). +2 tests (mapper: prórroga real RT=3; engine:
 flag corrupto con marcador desigual). 190 tests, 0 fallos.
 
+### Auditoría de cuartos: multiplicadores, penalti parado de Bono, 3er puesto y comparador (julio 2026)
+
+Auditoría completa tras los 4 cuartos de final (Francia 2-0 Marruecos, España 2-1 Bélgica,
+Noruega 1-2 Inglaterra, Argentina 3-1 Suiza):
+
+- **Multiplicadores por fase — SIN cambios.** La tabla oficial (grupos/16avos/octavos ×1 ·
+  cuartos ×1.5 · semis ×2 · final ×3) está en `multipliers.ts` **desde el commit inicial** y los 4
+  cuartos se puntuaron correctamente con ×1.5, con "Pasar Ronda" cuartos→semis a ×2 (multiplicador
+  de la ronda a la que se accede) y "Ganar Mundial"/"MVP" planos. Verificado contra el desglose
+  real de producción. **Criterio de redondeo (documentado en `multipliers.ts`): NO se redondea
+  nunca** — los puntos se calculan y persisten con su valor exacto (columnas `DOUBLE PRECISION`);
+  con ×1.5 y el ×0.5 de suplente la granularidad mínima es 0.25 pts y el frontend muestra el valor
+  tal cual (7.5, 22.5, 2925.75…).
+- **Penalti parado de Bono (Bounou) — corregido como DATO manual.** En Francia-Marruecos, Bounou
+  paró el penalti de Mbappé del 28' (juego abierto, el partido no tuvo tanda). Causa raíz: **FIFA no
+  emitió el `Type 57` ("el arquero ataja") en el 28'±1** — su timeline solo trae el lanzamiento
+  (`Type 6`, sin descripción) y un `Type 12` (remate, ruido) —, así que el cruce Type 6↔Type 57 del
+  mapper (correcto por diseño) lo clasificó como "fallo a las nubes": −20 a Mbappé (que se mantiene:
+  el lanzador pierde 20 aunque se lo paren) y −15 a Mazraoui (penalti cometido), pero sin +30 para
+  Bounou. Es un **hueco de datos de la fuente, no un bug del código**: sin señal en el timeline es
+  imposible distinguir parada de fallo. Corrección aplicada vía `POST /api/admin/events` con
+  `source='manual'` (intocable para re-derivaciones futuras): `penalty_saved_play=1` → **+30 × 1.5
+  = +45** para la única porra con Bounou (Ocharan: 2895 → 2940 pts, de 9º a 7º). Auditados los
+  timelines de los otros 3 cuartos: **cero `Type 6`** → no hay más penaltis (ni paradas) sin computar.
+- **Partido de 3er puesto — exclusión verificada de extremo a extremo (sin cambios).** FIFA lo tiene
+  en su calendario ("Partido por el tercer puesto", 18-jul, IdMatch 400021542), pero
+  `mapStageToPhase` devuelve `null` para "tercer/third/3rd" (evaluado ANTES que "final", con test) y
+  `syncCalendar` salta los partidos de fase null → **nunca entra en `matches`**, así que no aparece
+  en el calendario público, el scheduler no lo pollea (solo mira la BD) y ningún evento suyo puede
+  puntuar. La final entrará sola cuando se conozcan los finalistas (equipos aún sin conciliar).
+- **Comparador de porras — solo elementos VIVOS.** `ComparadorPorras.js` ahora pide
+  `GET /api/phase-results` y oculta las selecciones con `result='eliminated'` (cualquier fase) y los
+  jugadores cuyos equipos están eliminados — el mismo criterio que el detalle de participante. Las
+  coincidencias 🤝 se calculan sobre lo visible. Nada más del comparador ni de la clasificación cambia.
+
 ### Revisión automática post-partido / autocorrección (junio 2026)
 
 **Problema:** al finalizar un partido sus eventos se **auto-confirman**, y el scraper tenía la regla

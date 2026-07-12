@@ -26,6 +26,16 @@ export default function ComparadorPorras({ participantes }) {
   const [sel, setSel] = useState(['', '', '', '']);
   const [datos, setDatos] = useState({});
   const [cargando, setCargando] = useState(false);
+  // Selecciones ya eliminadas del Mundial (cualquier fase con result='eliminated').
+  // El comparador solo muestra lo que sigue VIVO: ni selecciones eliminadas ni
+  // jugadores de selecciones eliminadas.
+  const [eliminados, setEliminados] = useState(() => new Set());
+
+  useEffect(() => {
+    apiGet('/phase-results')
+      .then(rs => setEliminados(new Set(rs.filter(r => r.result === 'eliminated').map(r => r.team_id))))
+      .catch(() => {});
+  }, []);
 
   const elegidos = sel.filter(Boolean);
 
@@ -39,7 +49,18 @@ export default function ComparadorPorras({ participantes }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel.join('|')]);
 
-  const cols = elegidos.map(id => ({ id, det: datos[id] })).filter(c => c.det);
+  const cols = elegidos
+    .map(id => ({ id, det: datos[id] }))
+    .filter(c => c.det)
+    // Solo elementos vivos: fuera selecciones eliminadas y jugadores cuyos equipos están eliminados
+    .map(c => ({
+      ...c,
+      det: {
+        ...c.det,
+        selections: c.det.selections.filter(s => !eliminados.has(s.team_id)),
+        lineup: c.det.lineup.filter(l => !eliminados.has(l.team_id)),
+      },
+    }));
 
   // Coincidencias entre las porras comparadas (equipo/jugador en ≥2 de ellas)
   const vecesEquipo = new Map();

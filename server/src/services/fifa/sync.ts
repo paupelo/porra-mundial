@@ -135,6 +135,7 @@ export async function syncCalendar(): Promise<CalendarSyncSummary> {
       group_name: draft.groupName,
       venue: draft.venue,
       last_scraped_at: now,
+      excluded_from_scoring: (draft.excludedFromScoring ? 1 : 0) as 0 | 1,
     };
 
     const existing = await MatchesRepo.findByFifaId(draft.fifaMatchId);

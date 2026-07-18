@@ -94,3 +94,13 @@
 @media (max-width: 768px) {
   .cal-match { flex-wrap: wrap; gap: 8px; }
 }
+
+/* Aviso de partido excluido del scoring (3er/4º puesto): visible en la tarjeta
+   y en el detalle, sin alterar el resto de partidos. */
+.cal-no-puntua {
+  display: inline-block; margin-top: 5px;
+  font-size: 0.72rem; font-weight: 700;
+  background: #fef3c7; color: #92400e; border: 1px solid #fbbf24;
+  padding: 2px 8px; border-radius: 6px;
+}
+.cal-no-puntua-detalle { margin-top: 12px; font-size: 0.85rem; padding: 6px 12px; }

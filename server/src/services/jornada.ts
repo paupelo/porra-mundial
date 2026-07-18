@@ -126,6 +126,9 @@ export function computeProgresoJornada(
   porras: PorraFull[],
   players: PlayerRecord[],
 ): ProgresoJornada {
+  // Los partidos excluidos del scoring (3er/4º puesto) no cuentan para la
+  // jornada en curso: ni definen la ronda activa ni suman participantes.
+  matches = matches.filter(m => !m.excluded_from_scoring);
   const matchdays = deriveGroupMatchdays(matches);
   const round = currentRound(matches, matchdays);
   const roundK = roundKey(round);

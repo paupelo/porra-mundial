@@ -127,6 +127,9 @@ function kickoffPassed(match: MatchRecord, now: Date): boolean {
  * sus jugadores +15) y, si procede, la penalización por quedar eliminado.
  */
 async function deriveKnockoutPhaseResults(match: MatchRecord): Promise<boolean> {
+  // El 3er/4º puesto no puntúa: sin advanced/eliminated/winner (¡su ganador NO
+  // es 'winner' del Mundial aunque su fase sea 'final'!).
+  if (match.excluded_from_scoring) return false;
   if (!KNOCKOUT_PHASES.includes(match.phase) || match.status !== 'finished') return false;
   if (match.home_score === null || match.away_score === null) return false;
 
@@ -177,7 +180,10 @@ async function tick(): Promise<void> {
   try {
     const now = new Date();
     let matches = await MatchesRepo.findAll();
-    const fifaMatches = matches.filter(m => m.fifa_match_id);
+    // Los partidos excluidos del scoring (3er/4º puesto) NO disparan polling:
+    // ni refresco rápido del calendario, ni poll en vivo, ni scrape de eventos.
+    // Su estado/marcador solo se actualiza con el refresco normal del calendario.
+    const fifaMatches = matches.filter(m => m.fifa_match_id && !m.excluded_from_scoring);
 
     // ¿Hay partidos que exigen refresco rápido del calendario?
     // (en juego, o programados que ya deberían haber empezado/terminado)
@@ -219,7 +225,7 @@ async function tick(): Promise<void> {
     // Partidos EN JUEGO: poll cada tick (60s) → minuto, marcador provisional y
     // eventos en vivo (is_live=1). Cubre también prórroga y penaltis.
     let liveFinished = false;
-    for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'live')) {
+    for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'live' && !x.excluded_from_scoring)) {
       didWork = true; // recalcular cada tick mientras haya partidos en vivo
       if (useBesoccer(m)) {
         try {
@@ -247,7 +253,7 @@ async function tick(): Promise<void> {
 
     // Partidos finalizados sin scrape final (sin eventos, o solo con
     // provisionales del modo en vivo) → descargar timeline definitivo
-    for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'finished')) {
+    for (const m of matches.filter(x => x.fifa_match_id && x.fifa_stage_id && x.status === 'finished' && !x.excluded_from_scoring)) {
       // Saneado de datos: una tanda de penaltis solo existe tras empate. Un flag de
       // penaltis con marcador desigual es un dato corrupto (ResultType=3 de FIFA es
       // prórroga, no tanda) que hacía puntuar el partido como empate. Idempotente:

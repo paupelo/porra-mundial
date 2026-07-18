@@ -48,6 +48,29 @@ describe('buildLiveInput', () => {
     expect(matches[0].away_score).toBe(0);
   });
 
+  it('elimina los partidos excluidos del scoring (3er/4º puesto) y sus eventos, en vivo o finalizados', () => {
+    const bronce = makeMatch({
+      id: 'mBronce', phase: 'final', status: 'finished',
+      home_score: 3, away_score: 1, excluded_from_scoring: 1,
+    });
+    const bronceLive = makeMatch({
+      id: 'mBronceLive', phase: 'final', status: 'live',
+      live_home_score: 2, live_away_score: 0, excluded_from_scoring: 1,
+    });
+    const normal = makeMatch({ id: 'mFinal', phase: 'final', status: 'finished', home_score: 1, away_score: 0 });
+    const evBronce = makeEvent({ id: 'eb', match_id: 'mBronce', goals_open_play: 2, is_confirmed: 1 });
+    const evBronceLive = makeEvent({ id: 'ebl', match_id: 'mBronceLive', is_live: 1, is_confirmed: 0 });
+    const evNormal = makeEvent({ id: 'en', match_id: 'mFinal', is_confirmed: 1 });
+
+    const { matches, events, liveIds } = buildLiveInput(
+      [bronce, bronceLive, normal],
+      [evBronce, evBronceLive, evNormal],
+    );
+    expect(matches.map(m => m.id)).toEqual(['mFinal']);
+    expect(events.map(e => e.id)).toEqual(['en']);
+    expect(liveIds.size).toBe(0); // el excluido en vivo tampoco genera overlay
+  });
+
   it('no toca partidos pending ni finished', () => {
     const pending = makeMatch({ id: 'm2', status: 'pending' });
     const finished = makeMatch({ id: 'm3', status: 'finished', home_score: 1, away_score: 0 });

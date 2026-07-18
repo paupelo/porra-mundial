@@ -3,6 +3,7 @@ import {
   classifyEvent,
   extractLineup,
   isShootoutEvent,
+  isThirdPlaceStage,
   localized,
   mapCalendarMatch,
   mapStageToPhase,
@@ -52,6 +53,21 @@ describe('FIFA mapper — mapStageToPhase', () => {
   it('descarta el tercer puesto (la porra no lo puntúa)', () => {
     expect(mapStageToPhase('Partido por el tercer puesto')).toBeNull();
     expect(mapStageToPhase('Play-off for third place')).toBeNull();
+    // Nombre REAL del calendario 2026 (jul-2026): FIFA lo llama "Bronze final".
+    // Contiene "final" → sin la detección específica se colaba como fase 'final'.
+    expect(mapStageToPhase('Bronze final')).toBeNull();
+  });
+});
+
+describe('FIFA mapper — isThirdPlaceStage', () => {
+  it('detecta el 3er/4º puesto en todas sus variantes de nombre', () => {
+    expect(isThirdPlaceStage('Partido por el tercer puesto')).toBe(true);
+    expect(isThirdPlaceStage('Play-off for third place')).toBe(true);
+    expect(isThirdPlaceStage('3rd place match')).toBe(true);
+    expect(isThirdPlaceStage('Bronze final')).toBe(true);
+    expect(isThirdPlaceStage('Final del bronce')).toBe(true);
+    expect(isThirdPlaceStage('Final')).toBe(false);
+    expect(isThirdPlaceStage('Semifinal')).toBe(false);
   });
 });
 
@@ -90,6 +106,31 @@ describe('FIFA mapper — mapCalendarMatch', () => {
     expect(d.decidedByPenalties).toBe(false);
     expect(d.groupName).toBe('Grupo A');
     expect(d.venue).toBe('Estadio Azteca');
+    expect(d.excludedFromScoring).toBe(false);
+  });
+
+  it('el 3er/4º puesto ("Bronze final") entra con fase final pero excluido del scoring', () => {
+    const d = mapCalendarMatch({
+      ...base,
+      IdMatch: '400021542',
+      StageName: [{ Locale: 'en-GB', Description: 'Bronze final' }],
+      GroupName: [],
+      Home: { IdCountry: 'FRA', TeamName: [{ Description: 'Francia' }] },
+      Away: { IdCountry: 'ENG', TeamName: [{ Description: 'Inglaterra' }] },
+      MatchStatus: 1,
+    })!;
+    expect(d.phase).toBe('final');           // aparece en el Calendario…
+    expect(d.excludedFromScoring).toBe(true); // …pero jamás puntúa
+  });
+
+  it('la final de verdad NO queda excluida del scoring', () => {
+    const d = mapCalendarMatch({
+      ...base,
+      StageName: [{ Locale: 'es-ES', Description: 'Final' }],
+      GroupName: [],
+    })!;
+    expect(d.phase).toBe('final');
+    expect(d.excludedFromScoring).toBe(false);
   });
 
   it('detecta tanda de penaltis y su ganador (ResultType=2 + marcador de tanda, datos reales)', () => {

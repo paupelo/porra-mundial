@@ -49,9 +49,21 @@ export function mapStageToPhase(stageName: string): Phase | null {
   if (s.includes('cuartos') || s.includes('quarter')) return 'cuartos';
   if (s.includes('semi')) return 'semifinales';
   // tercer puesto antes que 'final' (su nombre suele contener "final" o "play-off")
-  if (s.includes('tercer') || s.includes('third') || s.includes('3rd')) return null;
+  if (isThirdPlaceStage(stageName)) return null;
   if (s.includes('final')) return 'final';
   return null;
+}
+
+/**
+ * ¿Es el partido de 3er/4º puesto? La porra NO lo puntúa bajo ningún concepto,
+ * pero SÍ se muestra en el Calendario (con aviso de que no puntúa). FIFA lo ha
+ * llamado "Partido por el tercer puesto" y también "Bronze final" (jul-2026):
+ * por eso se detecta por varias palabras clave y no solo por "tercer/third".
+ */
+export function isThirdPlaceStage(stageName: string): boolean {
+  const s = normalize(stageName);
+  return s.includes('tercer') || s.includes('third') || s.includes('3rd')
+    || s.includes('bronze') || s.includes('bronce');
 }
 
 // ─── Estado del partido ───────────────────────────────────────────────────────
@@ -89,6 +101,8 @@ export interface FifaMatchDraft {
   awayPenalties: number | null;
   /** Código de país del ganador de la tanda (si la hubo) */
   penaltyWinnerCode: string | null;
+  /** 3er/4º puesto: visible en el Calendario pero excluido de todo el scoring. */
+  excludedFromScoring: boolean;
 }
 
 function teamCode(team: AnyObj | undefined): string | null {
@@ -126,10 +140,14 @@ export function mapCalendarMatch(raw: unknown): FifaMatchDraft | null {
     penaltyWinnerCode = homePens > awayPens ? teamCode(home) : teamCode(away);
   }
 
+  // El 3er/4º puesto pertenece a la ronda final del cuadro, pero se marca
+  // excluido: entra en `matches` (para verse en el Calendario) sin puntuar jamás.
+  const excludedFromScoring = isThirdPlaceStage(stageNameRaw);
+
   return {
     fifaMatchId,
     fifaStageId: String(m.IdStage ?? ''),
-    phase: mapStageToPhase(stageNameRaw),
+    phase: excludedFromScoring ? 'final' : mapStageToPhase(stageNameRaw),
     stageNameRaw,
     groupName: localized(m.GroupName) || null,
     venue: localized((m.Stadium as AnyObj)?.Name) || null,
@@ -145,6 +163,7 @@ export function mapCalendarMatch(raw: unknown): FifaMatchDraft | null {
     homePenalties: homePens,
     awayPenalties: awayPens,
     penaltyWinnerCode,
+    excludedFromScoring,
   };
 }
 

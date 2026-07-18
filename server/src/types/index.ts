@@ -76,6 +76,12 @@ export interface MatchRecord {
   reconcile_version?: number | null;
   /** URL del partido en es.besoccer.com (fuente de datos de la fase KO). */
   besoccer_url?: string | null;
+  /**
+   * Partido visible en el Calendario pero EXCLUIDO de todo el scoring y del
+   * polling (3er/4º puesto): el motor, el overlay en vivo, el scheduler y las
+   * derivaciones de fase lo ignoran por completo.
+   */
+  excluded_from_scoring?: 0 | 1;
 }
 
 export interface MatchPlayerEventRecord {

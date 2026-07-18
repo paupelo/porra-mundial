@@ -30,6 +30,17 @@ export interface LiveInput {
  * provisional. Función pura.
  */
 export function buildLiveInput(matches: MatchRecord[], events: MatchPlayerEventRecord[]): LiveInput {
+  // Partidos excluidos del scoring (3er/4º puesto): se eliminan de la entrada
+  // del motor junto con sus eventos. Es el punto único por el que pasan TODOS
+  // los cálculos (recálculo/caché, ranking del día anterior, resumen de
+  // elegidos), así que ningún concepto —equipos, jugadores, bonus, en vivo o
+  // definitivo— puede puntuar por ellos.
+  const excludedIds = new Set(matches.filter(m => m.excluded_from_scoring).map(m => m.id));
+  if (excludedIds.size > 0) {
+    matches = matches.filter(m => !excludedIds.has(m.id));
+    events = events.filter(e => !excludedIds.has(e.match_id));
+  }
+
   const liveIds = new Set(matches.filter(m => m.status === 'live').map(m => m.id));
 
   const effectiveMatches = matches.map(m =>

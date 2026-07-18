@@ -85,10 +85,13 @@ function MatchCard({ m, onSelect, dayOffset }) {
       <div className="cal-match-equipos">
         <div className="cal-match-nombres">{m.home_team_name} – {m.away_team_name}</div>
         <div className="cal-match-meta">
-          {FASE_LABELS[m.phase] ?? m.phase}
+          {m.excluded_from_scoring ? '3er y 4º puesto' : (FASE_LABELS[m.phase] ?? m.phase)}
           {m.group_name ? ` · ${m.group_name}` : ''}
           {m.venue ? ` · ${m.venue}` : ''}
         </div>
+        {m.excluded_from_scoring ? (
+          <div className="cal-no-puntua">⚠️ Este partido NO puntúa en la porra</div>
+        ) : null}
       </div>
       <Marcador m={m} dayOffset={dayOffset} />
       <EstadoBadge status={m.status} />
@@ -218,11 +221,16 @@ function DetallePartido({ matchId, onBack }) {
         </div>
         <div className="total" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <Marcador m={match} />
-          <span>{FASE_LABELS[match.phase] ?? match.phase}{match.group_name ? ` · ${match.group_name}` : ''}</span>
+          <span>{match.excluded_from_scoring ? '3er y 4º puesto' : (FASE_LABELS[match.phase] ?? match.phase)}{match.group_name ? ` · ${match.group_name}` : ''}</span>
           {match.venue && <span>· {match.venue}</span>}
           <span>· {fecha}</span>
           {etiqueta}
         </div>
+        {match.excluded_from_scoring ? (
+          <div className="cal-no-puntua cal-no-puntua-detalle">
+            ⚠️ Este partido NO puntúa en la porra: no suma ni resta puntos a ninguna selección ni jugador.
+          </div>
+        ) : null}
       </div>
 
       {/* Selecciones agrupadas por equipo, local primero */}

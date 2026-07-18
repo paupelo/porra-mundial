@@ -605,16 +605,47 @@ Noruega 1-2 Inglaterra, Argentina 3-1 Suiza):
   `source='manual'` (intocable para re-derivaciones futuras): `penalty_saved_play=1` → **+30 × 1.5
   = +45** para la única porra con Bounou (Ocharan: 2895 → 2940 pts, de 9º a 7º). Auditados los
   timelines de los otros 3 cuartos: **cero `Type 6`** → no hay más penaltis (ni paradas) sin computar.
-- **Partido de 3er puesto — exclusión verificada de extremo a extremo (sin cambios).** FIFA lo tiene
-  en su calendario ("Partido por el tercer puesto", 18-jul, IdMatch 400021542), pero
-  `mapStageToPhase` devuelve `null` para "tercer/third/3rd" (evaluado ANTES que "final", con test) y
-  `syncCalendar` salta los partidos de fase null → **nunca entra en `matches`**, así que no aparece
-  en el calendario público, el scheduler no lo pollea (solo mira la BD) y ningún evento suyo puede
-  puntuar. La final entrará sola cuando se conozcan los finalistas (equipos aún sin conciliar).
+- **Partido de 3er puesto — exclusión verificada de extremo a extremo.** ⚠️ SUPERADO (jul-2026):
+  FIFA renombró la fase a "Bronze final" y el partido SÍ entró en `matches` como fase `final`.
+  Ver la sección "Partido de 3er/4º puesto: visible en Calendario pero EXCLUIDO de todo" más abajo,
+  que describe la solución definitiva (flag `excluded_from_scoring`).
 - **Comparador de porras — solo elementos VIVOS.** `ComparadorPorras.js` ahora pide
   `GET /api/phase-results` y oculta las selecciones con `result='eliminated'` (cualquier fase) y los
   jugadores cuyos equipos están eliminados — el mismo criterio que el detalle de participante. Las
   coincidencias 🤝 se calculan sobre lo visible. Nada más del comparador ni de la clasificación cambia.
+
+### Partido de 3er/4º puesto: visible en Calendario pero EXCLUIDO de todo (julio 2026)
+
+**Regla de la porra: el partido por el tercer puesto NO puntúa bajo ningún concepto** (ni equipos,
+ni jugadores, ni bonus, ni tanda, ni en vivo), pero SÍ se muestra en la pestaña Calendario con un
+aviso claro. Historia: la exclusión original (omitirlo del calendario vía `mapStageToPhase → null`
+para "tercer/third/3rd") quedó rota cuando FIFA renombró la fase a **"Bronze final"** — contiene
+"final" y el partido (Francia-Inglaterra 18-jul, IdMatch 400021542) entró en `matches` como fase
+`final`. Riesgo mayor evitado: al acabar, `deriveKnockoutPhaseResults` habría dado `winner`@final
+(¡bonus Ganar Mundial!) al ganador del bronce. Se detectó ANTES del kickoff, con 0 eventos y 0
+puntos computados (nada que revertir).
+
+**Solución — flag explícito `matches.excluded_from_scoring` (INTEGER 0/1, aditivo):**
+- **Detección** (`fifa/mapper.ts` → `isThirdPlaceStage`): "tercer/third/3rd/bronze/bronce".
+  `mapCalendarMatch` marca el draft `excludedFromScoring=true` con fase `final` (pertenece a esa
+  ronda del cuadro) y `syncCalendar` persiste el flag. `mapStageToPhase` también devuelve null para
+  "bronze/bronce" (defensa). Migración con data-fix idempotente: el flag se activa por
+  `fifa_match_id='400021542'` al arrancar, aunque FIFA no responda.
+- **Scoring — punto único** (`scoring/live.ts` → `buildLiveInput`): elimina de la entrada del motor
+  los partidos excluidos Y sus eventos. Como recálculo/caché (`recalc.ts`), ranking del día anterior
+  (`ranking.ts`) y resumen de elegidos (`elegidos-scores.ts`) pasan TODOS por `buildLiveInput`,
+  ningún concepto puede puntuar por estos partidos, ni en vivo ni en definitivo. El motor puro no se
+  tocó.
+- **Scheduler**: los excluidos no cuentan como "calientes" (no fuerzan refresco rápido), no se
+  pollean en vivo (60s), no se scrapean sus eventos, no se auto-confirman y `deriveKnockoutPhaseResults`
+  los ignora (sin advanced/eliminated/winner). Su estado/marcador solo se actualiza con el refresco
+  normal del calendario (1 petición bulk, ≤6h) para que el Calendario muestre el resultado.
+  `computeProgresoJornada` también los filtra (no definen la ronda activa).
+- **Frontend Calendario**: la tarjeta y el detalle muestran la etiqueta ámbar
+  "⚠️ Este partido NO puntúa en la porra" (clase `cal-no-puntua`) y "3er y 4º puesto" como fase en
+  lugar de "Final". Nada más cambia; la final real (España-Argentina 19-jul) puntúa con normalidad.
+- **Tests**: +4 (mapper: "Bronze final" → excluido, la final real no; `buildLiveInput`: descarta
+  excluidos y sus eventos, finished y live). Suite: 194 tests, 0 fallos.
 
 ### Revisión automática post-partido / autocorrección (junio 2026)
 

@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS matches (
   home_goal_minutes    INTEGER[],
   away_goal_minutes    INTEGER[],
   besoccer_url         TEXT,
+  excluded_from_scoring INTEGER NOT NULL DEFAULT 0,
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 

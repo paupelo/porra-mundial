@@ -122,6 +122,7 @@ router.get('/matches', async (_req, res, next) => {
       minute: m.minute ?? null,
       live_home_score: m.live_home_score ?? null,
       live_away_score: m.live_away_score ?? null,
+      excluded_from_scoring: m.excluded_from_scoring ?? 0,
     })));
   } catch (e) { next(e); }
 });
@@ -212,6 +213,7 @@ router.get('/calendario/:matchId', async (req, res, next) => {
         minute: match.minute ?? null,
         live_home_score: match.live_home_score ?? null,
         live_away_score: match.live_away_score ?? null,
+        excluded_from_scoring: match.excluded_from_scoring ?? 0,
       },
       selecciones,
       jugadores,

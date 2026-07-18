@@ -47,6 +47,10 @@ export async function runMigrations(): Promise<void> {
     // derivaron los eventos. El scheduler re-scrapea los partidos cuya versión sea
     // inferior a RECONCILE_VERSION para reaplicar cambios de scraper/scoring sin admin.
     'ALTER TABLE matches ADD COLUMN IF NOT EXISTS reconcile_version INTEGER NOT NULL DEFAULT 0',
+    // Partido de 3er/4º puesto (jul-2026): FIFA lo llama "Bronze final" y entró
+    // como fase 'final'. Se muestra en el Calendario pero queda excluido de todo
+    // scoring y polling (ver isThirdPlaceStage en fifa/mapper.ts).
+    'ALTER TABLE matches ADD COLUMN IF NOT EXISTS excluded_from_scoring INTEGER NOT NULL DEFAULT 0',
     // Ampliar el CHECK de source para admitir borradores del scraper de FIFA.
     // El par DROP+ADD es idempotente ejecutado en este orden.
     'ALTER TABLE match_player_events DROP CONSTRAINT IF EXISTS match_player_events_source_check',
@@ -55,6 +59,12 @@ export async function runMigrations(): Promise<void> {
   for (const sql of alters) {
     await db.query(sql).catch(() => {});
   }
+
+  // Data fix idempotente: el 3er/4º puesto del Mundial 2026 ya existía en la BD
+  // sin el flag. El sync del calendario también lo mantiene (isThirdPlaceStage),
+  // pero así queda excluido desde el arranque aunque FIFA no responda.
+  await db.query("UPDATE matches SET excluded_from_scoring=1 WHERE fifa_match_id='400021542'").catch(() => {});
+
   console.log('✓ Migrations applied');
 }
 
